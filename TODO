@@ -1,0 +1,16 @@
+1)Get 1D solution working
+2)Implement 2d (in principle still a matrix, just with even spacing (in mass weighted coordinates), along all the dimensions).
+e.g.
+1d 
+      Q1(1), Q1(2), Q1(3)
+Q1(1)
+Q1(2)
+Q1(3)
+
+          [Q1(1),Q2(1)], [Q1(2),Q2(1)], [Q1(3),Q2(1)], [Q1(1), Q2[2]]...
+Q1(1)Q1(2) 
+Q1(2)Q1(2) 
+Q1(3)Q1(2) 
+Q1(1)Q2(2)]
+...
+3)Implement radial
