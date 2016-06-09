@@ -158,8 +158,10 @@ def main():
     vfit=returnsplinevalue(Ener_spline,xnew)
     Ham=H_array(ncoord=1,pts=num_points,mass=(15.99491461956*50.9439595/(50.9439595+15.99491461956)),dq=0.001,V=vfit)
     print(vfit)
-    sol=jacobi(Ham,vfit,N=25)
-    print(sol)
+    eigenval, eigenvec=np.linalg.eig(Ham)
+#    sol=jacobi(Ham,vfit,N=25)
+    print(eigenval)
+    print(eigenvec)
 #    print(Ham)
     from sys import exit
     exit()
