@@ -2,7 +2,7 @@
 """ This program was written following 
 Citation: The Journal of Chemical Physics 96, 1982 (1992); doi: 10.1063/1.462100
 as a guide
-Should use  scipy.sparse.linalg.eigsh(A, k=6, M=None, sigma=None, which='LM', v0=None, ncv=None, maxiter=None, tol=0, return_eigenvectors=True, Minv=None, OPinv=None, mode='normal')[source] as a way of doing Lanczos...."""
+Can use  scipy.sparse.linalg.eigsh(A, k=6, M=None, sigma=None, which='LM', v0=None, ncv=None, maxiter=None, tol=0, return_eigenvectors=True, Minv=None, OPinv=None, mode='normal')[source] as a way of doing Lanczos...."""
 from __future__ import absolute_import, division, print_function, unicode_literals
 from builtins import (bytes, str, open, super, range, zip, round, input, int, pow, object)
 
@@ -10,17 +10,19 @@ def constants(CODATA_year=2010):
     """ CODATA constants used in program and other global defintions including number of points and numpy datatype for reals"""
     global numpy_precision, num_points
     numpy_precision="np.float64"
-    num_points=1000
-    global planckconstant, light_speed, Rydberg, electron_charge, amu, bohr
+    num_points=5
+    global planckconstant, light_speed, Rydberg, electron_charge, amu, bohr, e_mass
     light_speed= 299792458 # m/s
     if CODATA_year==2010:
         planckconstant=6.62606957E-34 # Js
         amu=1.660538921E-27 #kg
+        e_mass= 9.10938215E-31 #kg
         electron_charge=1.602176565E-19  #C
         rydberg= 109737.31568539 # cm-1
     elif CODATA_year==2006:
         planckconstant= 6.626068963E-34 # Js
         amu= 1.660538782E-27 # kg
+        e_mass= 9.10938291E-31 #kg
         electron_charge= 1.602176487E-19 # C
         rydberg= 109737.31568527 #cm-1
     else:
@@ -47,8 +49,8 @@ def openandread(filename):
     return lines
 
 def readpotential(inp,r_units='bohr'):
-    # potential should have coordinate and units as main input
-    # anyline starting with ! or # is commented out
+#potential should have coordinate and units as main input
+# anyline starting with ! or # is commented out
     commentoutchars=['!','#']
     lines=openandread(inp)
     r=[]
@@ -95,31 +97,56 @@ def returnsplinevalue(spline,xnew):
     from scipy import interpolate
     return interpolate.splev(xnew, spline, der=0)
 
-def T_array(n=1,reduced_mass=0.5,dx=0.001):
-    """ Kinetc Energy Array (dimensionality=2): see Eq A6a and A6b of JCP 96, 1982 (1992): note 
-    constants are defined in constants module globally earlier"""
+def H_array(ncoord=1,pts=5,coordtype=['r'],mass=0.5,dq=0.001,qmax=1.0,qmin=2.0,V=[]):
+    """ Kinetic Energy Array (dimensionality=2): see Eq A6a and A6b of JCP 96, 1982 (1992): note 
+    constants are defined in constants module globally earlier
+    The Hamiltonian has been converted to atomic units, e.g.
+    H =  - [1/(2 am)] d^2/dx^2 + v(x)
+    ncoord must be passed, simplest is 1 for a 1D potential
+    dq is the massweighted spacing. All coordinates must use the same
+    pts is the number of points per coordinate
+    mass given in amu; converted to atomic units here"""
     import numpy as np
-#    A=np.identity(dimension,dtype=eval(numpy_precision))
-    prefactor=(np.pi**2*(planckconstant/(2*np.pi))**2/(4*reduced_mass*(dx**2)))
+    n=ncoord*(pts)
+    mass_conv=mass*(amu/e_mass)
+    #prefactor=((planckconstant/2)**2/(4*mass*amu*((qmax-qmin)**2)))
+# In atomic units
+    prefactor=np.pi**2/(4*mass_conv*(qmax-qmin)**2)
     A=np.zeros((n,n),dtype=eval(numpy_precision))
+    n1=n+1
     for i in range(n):
         for j in range(n):
             if i==j:
-                A[i,j]=prefactor*(((2.0*num_points**2+1.)/3.0)-(1./np.sin((np.pi*i)/num_points)))
+                A[i,j]=prefactor*(((2.0*n**2+1.)/3.0)-(1./np.sin((np.pi*(i+1))/n1)))+V[i]
             else:
-                A[i,j]=prefactor*
+                A[i,j]=prefactor*(-1**((i+1)-(j+1)))*((1/(np.sin((np.pi*((i+1)-(j+1)))/(2*n1))**2))-(1/(np.sin((np.pi*((i+1)+(j+1)))/(2*n1))**2)))
     return A
-
+# I'll probably need to worry about the indicies this runs over when I attempt to generalize to multiple dimensions
+#    dims=[]
+#    for i in range(ncoord):
+#        dims.append(pts)
+#    indicies=np.zeros(dims)
+# Slightly better indicies, in a list instead
+#    from itertools import combinations_with_replacement
+#    possiblevals=''
+#    for i in range(pts):
+#        possiblevals=possiblevals+str(i+1)
+#    tmpindicies=combinations_with_replacement(possiblevals,ncoord)
+#    indicies=[]
+#    for x in tmpindicies:
+#        tmpind2=[]
+#        for y in range(len(x)):
+#            tmpind2.append(int(x[y]))
+#        indicies.append(tmpind2)
+#    print(indicies)
+# Idea to vectorize this function... not sure how to actually use position to evaluate, was thinking of setting up a sympy expression but gave up
+#    A=np.identity(dimension,dtype=eval(numpy_precision))
 #    A=np.piecewise(A,[A==0, A==1], [1, 1])
 
 def main():
     constants(CODATA_year=2010)
     import numpy as np
     import sys
-    T=T_array(n=5,reduced_mass=(1./3.),dx=0.001)
-    from sys import exit
-    print(T)
-    exit()
     if len(sys.argv)>1:
         potential=readpotential(sys.argv[1])
     else:
@@ -128,7 +155,14 @@ def main():
     Energies=np.array(potential[1],dtype=eval(numpy_precision))
     Ener_spline=cubicspline(r,Energies)
     xnew = np.linspace(min(r),max(r), num=num_points)
-    ynew=returnsplinevalue(Ener_spline,xnew)
+    vfit=returnsplinevalue(Ener_spline,xnew)
+    Ham=H_array(ncoord=1,pts=num_points,mass=(15.99491461956*50.9439595/(50.9439595+15.99491461956)),dq=0.001,V=vfit)
+    print(vfit)
+    sol=jacobi(Ham,vfit,N=25)
+    print(sol)
+#    print(Ham)
+    from sys import exit
+    exit()
 # plotting stuff to make sure splines work
     import matplotlib.pyplot as plt
     plt.figure()
