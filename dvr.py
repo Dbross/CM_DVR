@@ -103,7 +103,8 @@ def returnsplinemin(x,y):
     """Returns the minimum from a spline function"""
     from scipy.interpolate import splrep, splder, sproot
     spline=splrep(x, y, s=0,k=4)
-    return sproot(splder(spline))
+    xmin=sproot(splder(spline) )
+    return (xmin,returnsplinevalue(spline,xmin))
 #    return spline.interpolate.derivative().roots()
 
 def H_array(ncoord=1,pts=5,coordtype=['r'],mass=0.5,dq=0.001,qmax=1.0,qmin=2.0,V=[]):
@@ -162,9 +163,9 @@ def main():
         potential=readpotential(input('Give the file with the potential: '))
     r=np.array(potential[0],dtype=eval(numpy_precision))
     Energies_raw=np.array(potential[1],dtype=eval(numpy_precision))
-    Energies=Energies_raw-np.min(Energies_raw)
+    xmin,emin=returnsplinemin(r,Energies_raw)
+    Energies=Energies_raw-emin
     Ener_spline=cubicspline(r,Energies)
-#    xmin=returnsplinemin(r,Energies)
 #    print(xmin[0])
     xnew = np.linspace(min(r),max(r), num=num_points)
     vfit=returnsplinevalue(Ener_spline,xnew)
