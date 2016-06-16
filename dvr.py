@@ -33,6 +33,7 @@ def constants(CODATA_year=2010):
 
 
 def openandread(filename):
+    """ Opens a file and returns the lines. Upon UnicodeDecodeError will try latin1 encoding and return those lines. Encodes all lines as utf8 and strips linebreaks before returning"""
     import sys,os.path
     if os.path.isfile(filename):
         txt=open(filename,'r')
