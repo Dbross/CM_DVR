@@ -168,7 +168,7 @@ def main():
 #    print(xmin[0])
     xnew = np.linspace(min(r),max(r), num=num_points)
     vfit=returnsplinevalue(Ener_spline,xnew)
-    Ham=H_array(ncoord=1,pts=num_points,mass=(15.99491461956*50.9439595/(50.9439595+15.99491461956)),dq=0.001,V=vfit)
+    Ham=H_array(ncoord=1,pts=num_points,mass=(15.99491461956*50.9439595/(50.9439595+15.99491461956)),dq=0.001,V=vfit,qmax=max(r),qmin=min(r))
 #    print(Ham)
 #    print(vfit)
     eigenval, eigenvec=np.linalg.eig(Ham)
