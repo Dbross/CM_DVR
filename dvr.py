@@ -11,7 +11,7 @@ def constants(CODATA_year=2010):
     global numpy_precision, num_points
     numpy_precision="np.float64"
     num_points=5
-    global planckconstant, light_speed, Rydberg, electron_charge, amu, bohr, e_mass
+    global planckconstant, light_speed, Rydberg, electron_charge, amu, bohr, e_mass, hartreetocm
     light_speed= 299792458 # m/s
     if CODATA_year==2010:
         planckconstant=6.62606957E-34 # Js
@@ -30,6 +30,7 @@ def constants(CODATA_year=2010):
         exit('Constants not found')
     bohr= (float(5) * light_speed * electron_charge**2)/ (planckconstant*rydberg) 
     hartree= 2*rydberg
+    hartreetocm=219474.6313717
 
 
 def openandread(filename):
@@ -172,7 +173,7 @@ def main():
 #    print(vfit)
     eigenval, eigenvec=np.linalg.eig(Ham)
 #    sol=jacobi(Ham,vfit,N=25)
-    print(np.sort(eigenval))
+    print(np.sort(eigenval*hartreetocm))
 #    print(eigenvec)
 #    print(Ham)
     from sys import exit
