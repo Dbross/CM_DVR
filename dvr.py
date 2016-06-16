@@ -89,13 +89,20 @@ def jacobi(A,b,N=25,x=None):
 
 def cubicspline(x,y):
     """ Performs a cubic spline with no smoothing and returns the spline function"""
-    from scipy import interpolate
-    return interpolate.splrep(x, y, s=0)
+    from scipy.interpolate import splrep
+    return splrep(x, y, s=0)
 
 def returnsplinevalue(spline,xnew):
     """ returns the value(s) of a spline function at a given x(s)"""
-    from scipy import interpolate
-    return interpolate.splev(xnew, spline, der=0)
+    from scipy.interpolate import splev
+    return splev(xnew, spline, der=0)
+
+def returnsplinemin(x,y):
+    """Returns the minimum from a spline function"""
+    from scipy.interpolate import splrep, splder, sproot
+    spline=splrep(x, y, s=0,k=4)
+    return sproot(splder(spline))
+#    return spline.interpolate.derivative().roots()
 
 def H_array(ncoord=1,pts=5,coordtype=['r'],mass=0.5,dq=0.001,qmax=1.0,qmin=2.0,V=[]):
     """ Kinetic Energy Array (dimensionality=2): see Eq A6a and A6b of JCP 96, 1982 (1992): note 
@@ -152,16 +159,20 @@ def main():
     else:
         potential=readpotential(input('Give the file with the potential: '))
     r=np.array(potential[0],dtype=eval(numpy_precision))
-    Energies=np.array(potential[1],dtype=eval(numpy_precision))
+    Energies_raw=np.array(potential[1],dtype=eval(numpy_precision))
+    Energies=Energies_raw-np.min(Energies_raw)
     Ener_spline=cubicspline(r,Energies)
+#    xmin=returnsplinemin(r,Energies)
+#    print(xmin[0])
     xnew = np.linspace(min(r),max(r), num=num_points)
     vfit=returnsplinevalue(Ener_spline,xnew)
     Ham=H_array(ncoord=1,pts=num_points,mass=(15.99491461956*50.9439595/(50.9439595+15.99491461956)),dq=0.001,V=vfit)
-    print(vfit)
+#    print(Ham)
+#    print(vfit)
     eigenval, eigenvec=np.linalg.eig(Ham)
 #    sol=jacobi(Ham,vfit,N=25)
-    print(eigenval)
-    print(eigenvec)
+    print(np.sort(eigenval))
+#    print(eigenvec)
 #    print(Ham)
     from sys import exit
     exit()
