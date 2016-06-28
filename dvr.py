@@ -10,7 +10,7 @@ def constants(CODATA_year=2010):
     """ CODATA constants used in program and other global defintions including number of points and numpy datatype for reals"""
     global numpy_precision, num_points
     numpy_precision="np.float64"
-    num_points=5
+    num_points=101
     global planckconstant, light_speed, Rydberg, electron_charge, amu, bohr, e_mass, hartreetocm
     light_speed= 299792458 # m/s
     if CODATA_year==2010:
@@ -59,7 +59,7 @@ def readpotential(inp,r_units='bohr'):
     energy=[]
     if r_units.lower()=='bohr':
         r_unitconversion=1.0
-    elif r_units.lower()=='angstorm':
+    elif r_units.lower()=='angstrom':
         r_unitconversion=(1.0/bohr)
 #        r_unitconversion=1.88972613
     else:
@@ -117,19 +117,23 @@ def H_array(ncoord=1,pts=5,coordtype=['r'],mass=0.5,dq=0.001,qmax=1.0,qmin=2.0,V
     pts is the number of points per coordinate
     mass given in amu; converted to atomic units here"""
     import numpy as np
+    np.set_printoptions(suppress=False,threshold=np.nan,linewidth=np.nan)
     n=ncoord*(pts)
     mass_conv=mass*(amu/e_mass)
     #prefactor=((planckconstant/2)**2/(4*mass*amu*((qmax-qmin)**2)))
 # In atomic units
-    prefactor=np.pi**2/(4*mass_conv*(qmax-qmin)**2)
+    prefactor=(np.pi**2)/(4*mass_conv*((qmax-qmin)*((n+2)/n))**2)
     A=np.zeros((n,n),dtype=eval(numpy_precision))
     n1=n+1
     for i in range(n):
+        i1=i+1
         for j in range(n):
+            j1=j+1
             if i==j:
-                A[i,j]=prefactor*(((2.0*n**2+1.)/3.0)-(1./np.sin((np.pi*(i+1))/n1)))+V[i]
+                A[i,j]=prefactor* (((2*n1**2+1)/3)-(np.sin((i1*np.pi)/n1)**-2))+V[i]
             else:
-                A[i,j]=prefactor*(-1**((i+1)-(j+1)))*((1/(np.sin((np.pi*((i+1)-(j+1)))/(2*n1))**2))-(1/(np.sin((np.pi*((i+1)+(j+1)))/(2*n1))**2)))
+                A[i,j]=prefactor* ((-1)**(i1 - j1)) * ( np.sin((np.pi*(i1-j1)) / (2 * n1) )**-2  - 
+                        np.sin((np.pi*(i1+j1)) / (2 * n1))**-2)
     return A
 # I'll probably need to worry about the indicies this runs over when I attempt to generalize to multiple dimensions
 #    dims=[]
@@ -158,23 +162,26 @@ def main():
     import numpy as np
     import sys
     if len(sys.argv)>1:
-        potential=readpotential(sys.argv[1])
+        potential=readpotential(sys.argv[1],r_units='angstrom')
     else:
-        potential=readpotential(input('Give the file with the potential: '))
-    r=np.array(potential[0],dtype=eval(numpy_precision))
+        potential=readpotential(input('Give the file with the potential: '),r_units='angstrom')
+    r_raw=np.array(potential[0],dtype=eval(numpy_precision))
     Energies_raw=np.array(potential[1],dtype=eval(numpy_precision))
-    xmin,emin=returnsplinemin(r,Energies_raw)
+    xmin,emin=returnsplinemin(r_raw,Energies_raw)
+    r=r_raw-xmin
     Energies=Energies_raw-emin
     Ener_spline=cubicspline(r,Energies)
 #    print(xmin[0])
     xnew = np.linspace(min(r),max(r), num=num_points)
     vfit=returnsplinevalue(Ener_spline,xnew)
-    Ham=H_array(ncoord=1,pts=num_points,mass=(15.99491461956*50.9439595/(50.9439595+15.99491461956)),dq=0.001,V=vfit,qmax=max(r),qmin=min(r))
+    Ham=H_array(ncoord=1,pts=len(r),mass=7.094998450489430,dq=0.02,V=Energies,qmax=max(r),qmin=min(r))
 #    print(Ham)
-#    print(vfit)
     eigenval, eigenvec=np.linalg.eig(Ham)
-#    sol=jacobi(Ham,vfit,N=25)
-    print(np.sort(eigenval*hartreetocm))
+#    sol=jacobi(Ham,Energies,N=25)
+#    print(sol*hartreetocm)
+    Esort=np.sort(eigenval*hartreetocm)
+    for x in range(len(Esort)-1):
+        print(Esort[x+1]-Esort[x])
 #    print(eigenvec)
 #    print(Ham)
     from sys import exit
