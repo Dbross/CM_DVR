@@ -8,9 +8,11 @@ from builtins import (bytes, str, open, super, range, zip, round, input, int, po
 
 def constants(CODATA_year=2010):
     """ CODATA constants used in program and other global defintions including number of points and numpy datatype for reals"""
-    global numpy_precision, num_points
+    global numpy_precision, num_points, num_print_digits, plotit
     numpy_precision="np.float64"
     num_points=101
+    num_print_digits=3
+    plotit=1
     global planckconstant, light_speed, Rydberg, electron_charge, amu, bohr, e_mass, hartreetocm
     light_speed= 299792458 # m/s
     if CODATA_year==2010:
@@ -122,16 +124,20 @@ def H_array(ncoord=1,pts=5,coordtype=['r'],mass=0.5,dq=0.001,qmax=1.0,qmin=2.0,V
     mass_conv=mass*(amu/e_mass)
     #prefactor=((planckconstant/2)**2/(4*mass*amu*((qmax-qmin)**2)))
 # In atomic units
-    prefactor=(np.pi**2)/(4*mass_conv*((qmax-qmin)*((n+2)/n))**2)
-    A=np.zeros((n,n),dtype=eval(numpy_precision))
     n1=n+1
+#    dr=(qmax-qmin)/(pts-1)
+    prefactor=(np.pi**2)/(4*mass_conv*((qmax-qmin)*((float(pts)+1.0)/(float(pts)-1.0)))**2)
+    A=np.zeros((n,n),dtype=eval(numpy_precision))
+# One has been added to i and j inside to make this consistent with paper
     for i in range(n):
         for j in range(n):
             if i==j:
-                A[i,j]=prefactor* (((2*n1**2+1)/3)-(np.sin(((i+1)*np.pi)/n1)**-2))+V[i]
+                A[i,j]=prefactor* (((2*n1**2+1)/3)-(np.sin(((i+1)*np.pi)/n1)**-2)) +V[i]
             else:
                 A[i,j]=prefactor* ((-1)**(i - j)) * ( np.sin((np.pi*(i-j)) / (2 * n1) )**-2  - 
                         np.sin((np.pi*(i+j+2)) / (2 * n1))**-2)
+    #for x in A:
+    #    print(x)
     return A
 # I'll probably need to worry about the indicies this runs over when I attempt to generalize to multiple dimensions
 #    dims=[]
@@ -182,20 +188,32 @@ def main():
 #    print(sol*hartreetocm)
     Esort=np.sort(eigenval*hartreetocm)
     for x in range(len(Esort)-90):
-        print(Esort[x+1]-Esort[x])
-#    print(eigenvec)
-#    print(Ham)
-    from sys import exit
-    exit()
-# plotting stuff to make sure splines work
-    import matplotlib.pyplot as plt
-    plt.figure()
-    plt.plot(r,Energies,linestyle='none',marker='o')
-    plt.plot(xnew,ynew,linestyle='solid',marker='None')
+        print('{0:.{1}f}'.format(round(Esort[x+1]-Esort[x],num_print_digits),num_print_digits))
+# plotting stuff 
+    if plotit==1:
+        vfitcm=vfit*hartreetocm
+        import matplotlib.pyplot as plt
+        plt.figure()
+        plt.plot(r,Energies*hartreetocm,linestyle='none',marker='o')
+        plt.plot(xnew,vfitcm,linestyle='solid',marker='None')
+        mincut=[]
+        maxcut=[]
+        for x in range(len(Esort)-90):
+            for y in range(len(xnew)):
+                if Esort[x]>vfitcm[y]:
+                    mincut.append(xnew[y])
+                    break
+        for x in range(len(Esort)-90):
+            for y in range(len(xnew)-1,1,-1):
+                if Esort[x]>vfitcm[y]:
+                    maxcut.append(xnew[y])
+                    break
+        for x in range(len(Esort)-90):
+            plt.plot((mincut[x],maxcut[x]),(Esort[x],Esort[x]),linestyle='solid')
 #    plt.legend(['Points', 'Cubic Spline'])
-    plt.title('Cubic-spline interpolation')
-    plt.axis()
-    plt.show()
+        plt.title('Cubic-spline interpolation')
+        plt.axis()
+        plt.show()
 
 
 # jacobian stuff
