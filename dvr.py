@@ -29,8 +29,8 @@ def constants(CODATA_year=2010):
         from sys import exit
         exit('Constants not found')
     bohr= (float(5) * light_speed * electron_charge**2)/ (planckconstant*rydberg) 
-    hartree= 2*rydberg
-    hartreetocm=219474.6313717
+    hartreetocm= 2*rydberg
+#    hartreetocm=219474.6313717
 
 
 def openandread(filename):
@@ -126,14 +126,12 @@ def H_array(ncoord=1,pts=5,coordtype=['r'],mass=0.5,dq=0.001,qmax=1.0,qmin=2.0,V
     A=np.zeros((n,n),dtype=eval(numpy_precision))
     n1=n+1
     for i in range(n):
-        i1=i+1
         for j in range(n):
-            j1=j+1
             if i==j:
-                A[i,j]=prefactor* (((2*n1**2+1)/3)-(np.sin((i1*np.pi)/n1)**-2))+V[i]
+                A[i,j]=prefactor* (((2*n1**2+1)/3)-(np.sin(((i+1)*np.pi)/n1)**-2))+V[i]
             else:
-                A[i,j]=prefactor* ((-1)**(i1 - j1)) * ( np.sin((np.pi*(i1-j1)) / (2 * n1) )**-2  - 
-                        np.sin((np.pi*(i1+j1)) / (2 * n1))**-2)
+                A[i,j]=prefactor* ((-1)**(i - j)) * ( np.sin((np.pi*(i-j)) / (2 * n1) )**-2  - 
+                        np.sin((np.pi*(i+j+2)) / (2 * n1))**-2)
     return A
 # I'll probably need to worry about the indicies this runs over when I attempt to generalize to multiple dimensions
 #    dims=[]
@@ -156,6 +154,8 @@ def H_array(ncoord=1,pts=5,coordtype=['r'],mass=0.5,dq=0.001,qmax=1.0,qmin=2.0,V
 # Idea to vectorize this function... not sure how to actually use position to evaluate, was thinking of setting up a sympy expression but gave up
 #    A=np.identity(dimension,dtype=eval(numpy_precision))
 #    A=np.piecewise(A,[A==0, A==1], [1, 1])
+# See also http://stackoverflow.com/questions/21830112/evaluating-the-result-of-sympy-lambdify-on-a-numpy-mesgrid
+# http://docs.scipy.org/doc/numpy/reference/generated/numpy.mgrid.html
 
 def main():
     constants(CODATA_year=2010)
@@ -174,13 +174,14 @@ def main():
 #    print(xmin[0])
     xnew = np.linspace(min(r),max(r), num=num_points)
     vfit=returnsplinevalue(Ener_spline,xnew)
+#    print (V)
     Ham=H_array(ncoord=1,pts=len(r),mass=7.094998450489430,dq=0.02,V=Energies,qmax=max(r),qmin=min(r))
 #    print(Ham)
     eigenval, eigenvec=np.linalg.eig(Ham)
 #    sol=jacobi(Ham,Energies,N=25)
 #    print(sol*hartreetocm)
     Esort=np.sort(eigenval*hartreetocm)
-    for x in range(len(Esort)-1):
+    for x in range(len(Esort)-90):
         print(Esort[x+1]-Esort[x])
 #    print(eigenvec)
 #    print(Ham)
