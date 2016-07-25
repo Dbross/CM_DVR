@@ -12,7 +12,7 @@ def constants(CODATA_year=2010):
     numpy_precision="np.float64"
     num_points=101
     num_print_digits=3
-    plotit=True
+    plotit=False
     global planckconstant, light_speed, Rydberg, electron_charge, amu, bohr, e_mass, hartreetocm
     light_speed= 299792458 # m/s
     if CODATA_year==2010:
@@ -59,6 +59,8 @@ def readpotential(inp,r_units='bohr'):
     lines=openandread(inp)
     r=[]
     energy=[]
+    coordtypes=[]
+    types=['angular_2pi','radial','angular_pi']
     mass=0
     if r_units.lower()=='bohr':
         r_unitconversion=1.0
@@ -84,6 +86,14 @@ def readpotential(inp,r_units='bohr'):
             elif 'bohr' in x.lower():
                 print('reading potential as bohr, this should only be set once and the line it is on is ignored.')
                 r_unitconversion=1.0
+            elif types[0] in x.lower() or types[1] in x.lower() or types[2] in x.lower():
+                typelist=x.lower().split()
+                for y in typelist:
+                    if y in types:
+                        coordtypes.append(y)
+                #if len(coordtypes)<len(coords):
+                #    from sys import exit
+                #    exit('More coordinate types than coordinates')
             elif 'angstrom' in x.lower():
                 print('reading potential as angstrom, this should only be set once and the line it is on is ignored.')
                 r_unitconversion=(1.0/bohr)
@@ -96,7 +106,9 @@ def readpotential(inp,r_units='bohr'):
                     from sys import exit
                     print(x)
                     exit('line in potential not properly parsed')
-    return (r,energy, mass)
+        else:
+            print('{0} has been commented out'.format(x.strip()))
+    return (r,energy, mass, coordtypes)
 
 
 def jacobi(A,b,N=25,x=None):
@@ -149,17 +161,28 @@ def H_array(ncoord=1,pts=5,coordtype=['r'],mass=0.5,dq=0.001,qmax=1.0,qmin=2.0,V
     n1=n+1
     if dq==0.001:
         dq=(qmax-qmin)*((float(pts)+1.0)/(float(pts)-1.0))
-    prefactor=(np.pi**2)/(4*mass_conv*dq**2)
     A=np.zeros((n,n),dtype=eval(numpy_precision))
 # One has been added to i and j inside to make this consistent with paper
     for x in range (ncoord):
-        for i in range(pts):
-            for j in range(pts):
-                if i==j:
-                    A[i+x*pts,j+x*pts]=prefactor* (((2*n1**2+1)/3)-(np.sin(((i+1)*np.pi)/n1)**-2)) +V[i]
-                else:
-                    A[i+x*pts,j+x*pts]=prefactor* ((-1)**(i - j)) * ( np.sin((np.pi*(i-j)) / (2 * n1) )**-2  - 
-                            np.sin((np.pi*(i+j+2)) / (2 * n1))**-2)
+        prefactor=(np.pi**2)/(4*mass_conv*dq**2)
+        if coordtype[x]=='r':
+            for i in range(pts):
+                for j in range(pts):
+                    if i==j:
+                        A[i+x*pts,j+x*pts]=prefactor* (((2*n1**2+1)/3)-(np.sin(((i+1)*np.pi)/n1)**-2)) +V[i]
+                    else:
+                        A[i+x*pts,j+x*pts]=prefactor* ((-1)**(i - j)) * ( np.sin((np.pi*(i-j)) / (2 * n1) )**-2  - 
+                                np.sin((np.pi*(i+j+2)) / (2 * n1))**-2)
+# 0 to 2pi in appendix A section 4
+        elif coordtype[x]=='phi':
+            prefactor=(1.0)/(2*mass_conv)
+            for i in range(pts):
+                for j in range(pts):
+                    if i==j:
+                        A[i+x*pts,j+x*pts]=prefactor* (n1*(n1+1)/3) +V[i]
+                    else:
+                        A[i+x*pts,j+x*pts]=prefactor* ((-1)**(i - j)) * ( np.cos((np.pi*(i-j)) / (2 * n1 + 1) )  / 
+                                (2*np.sin(((np.pi*(i-j))/ (2 * n1 +1))**2 )))
     #for x in A:
     #    print(x)
     return A
@@ -198,13 +221,18 @@ def main():
     r_raw=np.array(potential[0],dtype=eval(numpy_precision))
     Energies_raw=np.array(potential[1],dtype=eval(numpy_precision))
     mass=potential[2]
+    coordtypes=potential[3]
+    coordtypedict={'radial': 'r', 'angular_2pi': 'phi', 'angular_pi': 'theta'}
+    for x in range(len(coordtypes)):
+        coordtypes[x]=coordtypedict[coordtypes[x]]
     xmin,emin=returnsplinemin(r_raw,Energies_raw)
-    r=r_raw-xmin
-    Energies=Energies_raw-emin
+    r=r_raw-np.min(xmin)
+    Energies=Energies_raw-np.min(emin)
     Ener_spline=cubicspline(r,Energies)
     xnew = np.linspace(min(r),max(r), num=num_points)
     vfit=returnsplinevalue(Ener_spline,xnew)
-    Ham=H_array(ncoord=1,pts=len(r),mass=mass,V=Energies,qmax=max(r),qmin=min(r))
+    Ham=H_array(ncoord=1,pts=len(r),mass=mass,V=Energies,qmax=max(r),qmin=min(r),coordtype=coordtypes)
+#    Ham=H_array(ncoord=1,pts=len(r),mass=mass,V=Energies,qmax=max(r),qmin=min(r),coordtype=['r'])
     eigenval, eigenvec=np.linalg.eig(Ham)
     Esort=np.sort(eigenval*hartreetocm)
 # plotting stuff 
@@ -244,8 +272,20 @@ def main():
         plt.title('Cubic-spline interpolation')
         plt.axis()
         plt.show()
+    else:
+        currentE=Esort[10]
+        Etoprint=len(Esort)
+        for x in range(10,len(Esort)-1,1):
+            if np.abs(np.subtract(currentE,Esort[x]))<5.0:
+                currentE=Esort[x]
+            elif Esort[x]<np.multiply(currentE,0.95):
+                currentE=Esort[x]
+            else:
+                Etoprint=x
+                break
+    print('Eigenvalues')
     for x in range(Etoprint):
-        print('{0:.{1}f}'.format(round(Esort[x+1]-Esort[x],num_print_digits),num_print_digits))
+        print('{0:.{1}f}'.format(round(Esort[x+1]-Esort[0],num_print_digits),num_print_digits))
 
 
 # jacobian stuff
