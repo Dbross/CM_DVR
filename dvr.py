@@ -59,6 +59,7 @@ def readpotential(inp,r_units='bohr'):
     lines=openandread(inp)
     r=[]
     energy=[]
+    mass=0
     if r_units.lower()=='bohr':
         r_unitconversion=1.0
     elif r_units.lower()=='angstrom':
@@ -67,13 +68,35 @@ def readpotential(inp,r_units='bohr'):
     else:
         from sys import exit
         exit('No valid units given for length')
+    import re
     for x in lines:
         if x[0] not in commentoutchars:
-            linesplit=x.split()
-            if len(linesplit)==2:
-                r.append(float(linesplit[0])*r_unitconversion)
-                energy.append(float(linesplit[1]))
-    return (r,energy)
+            if 'mass' in x.lower() and mass==0:
+                mass=re.findall("\d+\.\d+",x)
+                if len(mass)>1:
+                    from sys import exit
+                    exit('mass defined in potential twice')
+                print('using reduced mass of {0} amu.'.format(mass[0]))
+                mass=float(mass[0])
+            elif 'mass' in x.lower():
+                from sys import exit
+                exit('mass defined in potential twice')
+            elif 'bohr' in x.lower():
+                print('reading potential as bohr, this should only be set once and the line it is on is ignored.')
+                r_unitconversion=1.0
+            elif 'angstrom' in x.lower():
+                print('reading potential as angstrom, this should only be set once and the line it is on is ignored.')
+                r_unitconversion=(1.0/bohr)
+            else:
+                linesplit=x.split()
+                if len(linesplit)==2:
+                    r.append(float(linesplit[0])*r_unitconversion)
+                    energy.append(float(linesplit[1]))
+                else:
+                    from sys import exit
+                    print(x)
+                    exit('line in potential not properly parsed')
+    return (r,energy, mass)
 
 
 def jacobi(A,b,N=25,x=None):
@@ -129,13 +152,14 @@ def H_array(ncoord=1,pts=5,coordtype=['r'],mass=0.5,dq=0.001,qmax=1.0,qmin=2.0,V
     prefactor=(np.pi**2)/(4*mass_conv*dq**2)
     A=np.zeros((n,n),dtype=eval(numpy_precision))
 # One has been added to i and j inside to make this consistent with paper
-    for i in range(n):
-        for j in range(n):
-            if i==j:
-                A[i,j]=prefactor* (((2*n1**2+1)/3)-(np.sin(((i+1)*np.pi)/n1)**-2)) +V[i]
-            else:
-                A[i,j]=prefactor* ((-1)**(i - j)) * ( np.sin((np.pi*(i-j)) / (2 * n1) )**-2  - 
-                        np.sin((np.pi*(i+j+2)) / (2 * n1))**-2)
+    for x in range (ncoord):
+        for i in range(pts):
+            for j in range(pts):
+                if i==j:
+                    A[i+x*pts,j+x*pts]=prefactor* (((2*n1**2+1)/3)-(np.sin(((i+1)*np.pi)/n1)**-2)) +V[i]
+                else:
+                    A[i+x*pts,j+x*pts]=prefactor* ((-1)**(i - j)) * ( np.sin((np.pi*(i-j)) / (2 * n1) )**-2  - 
+                            np.sin((np.pi*(i+j+2)) / (2 * n1))**-2)
     #for x in A:
     #    print(x)
     return A
@@ -173,17 +197,16 @@ def main():
         potential=readpotential(input('Give the file with the potential: '),r_units='angstrom')
     r_raw=np.array(potential[0],dtype=eval(numpy_precision))
     Energies_raw=np.array(potential[1],dtype=eval(numpy_precision))
+    mass=potential[2]
     xmin,emin=returnsplinemin(r_raw,Energies_raw)
     r=r_raw-xmin
     Energies=Energies_raw-emin
     Ener_spline=cubicspline(r,Energies)
     xnew = np.linspace(min(r),max(r), num=num_points)
     vfit=returnsplinevalue(Ener_spline,xnew)
-    Ham=H_array(ncoord=1,pts=len(r),mass=7.094998450489430,V=Energies,qmax=max(r),qmin=min(r))
+    Ham=H_array(ncoord=1,pts=len(r),mass=mass,V=Energies,qmax=max(r),qmin=min(r))
     eigenval, eigenvec=np.linalg.eig(Ham)
     Esort=np.sort(eigenval*hartreetocm)
-    for x in range(len(Esort)-90):
-        print('{0:.{1}f}'.format(round(Esort[x+1]-Esort[x],num_print_digits),num_print_digits))
 # plotting stuff 
     if plotit:
         vfitcm=vfit*hartreetocm
@@ -198,6 +221,7 @@ def main():
             if np.multiply(0.95,(Esort[x]-Esort[x-1]))<(Esort[x+1]-Esort[x]):
                 validE.append(True)
             else:
+                Etoprint=x
                 for y in range(x,len(Esort)+1):
                     validE.append(False)
                 break
@@ -220,6 +244,8 @@ def main():
         plt.title('Cubic-spline interpolation')
         plt.axis()
         plt.show()
+    for x in range(Etoprint):
+        print('{0:.{1}f}'.format(round(Esort[x+1]-Esort[x],num_print_digits),num_print_digits))
 
 
 # jacobian stuff
