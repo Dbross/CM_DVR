@@ -12,7 +12,7 @@ def constants(CODATA_year=2010):
     numpy_precision="np.float64"
     num_points=101
     num_print_digits=3
-    plotit=1
+    plotit=True
     global planckconstant, light_speed, Rydberg, electron_charge, amu, bohr, e_mass, hartreetocm
     light_speed= 299792458 # m/s
     if CODATA_year==2010:
@@ -190,7 +190,7 @@ def main():
     for x in range(len(Esort)-90):
         print('{0:.{1}f}'.format(round(Esort[x+1]-Esort[x],num_print_digits),num_print_digits))
 # plotting stuff 
-    if plotit==1:
+    if plotit:
         vfitcm=vfit*hartreetocm
         import matplotlib.pyplot as plt
         plt.figure()
@@ -198,18 +198,29 @@ def main():
         plt.plot(xnew,vfitcm,linestyle='solid',marker='None')
         mincut=[]
         maxcut=[]
-        for x in range(len(Esort)-90):
-            for y in range(len(xnew)):
-                if Esort[x]>vfitcm[y]:
-                    mincut.append(xnew[y])
-                    break
-        for x in range(len(Esort)-90):
-            for y in range(len(xnew)-1,1,-1):
-                if Esort[x]>vfitcm[y]:
-                    maxcut.append(xnew[y])
-                    break
-        for x in range(len(Esort)-90):
-            plt.plot((mincut[x],maxcut[x]),(Esort[x],Esort[x]),linestyle='solid')
+        validE=[True]
+        for x in range(1,len(Esort)-1,1):
+            if np.multiply(0.95,(Esort[x]-Esort[x-1]))<(Esort[x+1]-Esort[x]):
+                validE.append(True)
+            else:
+                for y in range(x,len(Esort)+1):
+                    validE.append(False)
+                break
+        for x in range(len(Esort)):
+            if validE[x]:
+                for y in range(len(xnew)):
+                    if Esort[x]>vfitcm[y]:
+                        mincut.append(xnew[y])
+                        break
+        for x in range(len(Esort)):
+            if validE[x]:
+                for y in range(len(xnew)-1,1,-1):
+                    if Esort[x]>vfitcm[y]:
+                        maxcut.append(xnew[y])
+                        break
+        for x in range(len(Esort)):
+            if validE[x]:
+                plt.plot((mincut[x],maxcut[x]),(Esort[x],Esort[x]),linestyle='solid')
 #    plt.legend(['Points', 'Cubic Spline'])
         plt.title('Cubic-spline interpolation')
         plt.axis()
