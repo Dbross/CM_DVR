@@ -122,11 +122,11 @@ def H_array(ncoord=1,pts=5,coordtype=['r'],mass=0.5,dq=0.001,qmax=1.0,qmin=2.0,V
     np.set_printoptions(suppress=False,threshold=np.nan,linewidth=np.nan)
     n=ncoord*(pts)
     mass_conv=mass*(amu/e_mass)
-    #prefactor=((planckconstant/2)**2/(4*mass*amu*((qmax-qmin)**2)))
 # In atomic units
     n1=n+1
-#    dr=(qmax-qmin)/(pts-1)
-    prefactor=(np.pi**2)/(4*mass_conv*((qmax-qmin)*((float(pts)+1.0)/(float(pts)-1.0)))**2)
+    if dq==0.001:
+        dq=(qmax-qmin)*((float(pts)+1.0)/(float(pts)-1.0))
+    prefactor=(np.pi**2)/(4*mass_conv*dq**2)
     A=np.zeros((n,n),dtype=eval(numpy_precision))
 # One has been added to i and j inside to make this consistent with paper
     for i in range(n):
@@ -177,15 +177,10 @@ def main():
     r=r_raw-xmin
     Energies=Energies_raw-emin
     Ener_spline=cubicspline(r,Energies)
-#    print(xmin[0])
     xnew = np.linspace(min(r),max(r), num=num_points)
     vfit=returnsplinevalue(Ener_spline,xnew)
-#    print (V)
-    Ham=H_array(ncoord=1,pts=len(r),mass=7.094998450489430,dq=0.02,V=Energies,qmax=max(r),qmin=min(r))
-#    print(Ham)
+    Ham=H_array(ncoord=1,pts=len(r),mass=7.094998450489430,V=Energies,qmax=max(r),qmin=min(r))
     eigenval, eigenvec=np.linalg.eig(Ham)
-#    sol=jacobi(Ham,Energies,N=25)
-#    print(sol*hartreetocm)
     Esort=np.sort(eigenval*hartreetocm)
     for x in range(len(Esort)-90):
         print('{0:.{1}f}'.format(round(Esort[x+1]-Esort[x],num_print_digits),num_print_digits))
