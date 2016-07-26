@@ -158,14 +158,14 @@ def H_array(pts=5,coordtype=['r'],mass=0.5,dq=0.001,qmax=1.0,qmin=2.0,V=[]):
     n=ncoord*(pts)
     mass_conv=mass*(amu/e_mass)
 # In atomic units
-    n1=n+1
-    if dq==0.001:
-        dq=(qmax-qmin)*((float(pts)+1.0)/(float(pts)-1.0))
     A=np.zeros((n,n),dtype=eval(numpy_precision))
 # One has been added to i and j inside to make this consistent with paper
 # Need to make sure that the multidimensional diagonal ements are added consistent with the potential... do this when working on multidimensional part 
     for x in range (ncoord):
         if coordtype[x]=='r':
+            n1=pts+1
+            if dq==0.001:
+                dq=(qmax-qmin)*((float(pts)+1.0)/(float(pts)-1.0))
             prefactor=(np.pi**2)/(4*mass_conv*dq**2)
             for i in range(pts):
                 for j in range(pts):
@@ -177,8 +177,8 @@ def H_array(pts=5,coordtype=['r'],mass=0.5,dq=0.001,qmax=1.0,qmin=2.0,V=[]):
 # 0 to 2pi in appendix A section 4
         elif coordtype[x]=='phi':
             prefactor=(1.0)/(2*mass_conv)
-            m=int(np.divide(n,2))
-            if (2*m+1)!=n:
+            m=int(np.divide(pts,2))
+            if (2*m+1)!=pts:
                 from sys import exit
                 exit('in phi coordinate 2m+1 != n, must use odd number of points')
             for i in range(pts):
