@@ -71,15 +71,14 @@ def readpotential(inp,r_units='bohr'):
         from sys import exit
         exit('No valid units given for length')
     import re
+    numeric_const_pattern = r"""[-+]?(?: (?: \d* \. \d+ ) | (?: \d+ \.? ) ) (?: [Ee] [+-]? \d+ ) ?"""
+    rx=re.compile(numeric_const_pattern,re.VERBOSE)
     for x in lines:
         if x[0] not in commentoutchars:
             if 'mass' in x.lower() and mass==0:
-                mass=re.findall("\d+\.\d+",x)
-                if len(mass)>1:
-                    from sys import exit
-                    exit('mass defined in potential twice')
-                print('using reduced mass of {0} amu.'.format(mass[0]))
+                mass=rx.findall(x)
                 mass=float(mass[0])
+                print('using reduced mass of {0} amu.'.format(mass))
             elif 'mass' in x.lower():
                 from sys import exit
                 exit('mass defined in potential twice')
@@ -87,7 +86,7 @@ def readpotential(inp,r_units='bohr'):
                 print('reading potential as bohr, this should only be set once and the line it is on is ignored.')
                 r_unitconversion=1.0
             elif types[0] in x.lower() or types[1] in x.lower() or types[2] in x.lower():
-                typelist=x.lower().split()
+                typelist=x.lower().replace(',',' ').split()
                 for y in typelist:
                     if y in types:
                         coordtypes.append(y)
@@ -107,7 +106,7 @@ def readpotential(inp,r_units='bohr'):
                     print(x)
                     exit('line in potential not properly parsed')
         else:
-            print('{0} has been commented out'.format(x.strip()))
+            print('{0} commented out'.format(x[1:].strip()))
     return (r,energy, mass, coordtypes)
 
 
@@ -144,7 +143,7 @@ def returnsplinemin(x,y):
     return (xmin,returnsplinevalue(spline,xmin))
 #    return spline.interpolate.derivative().roots()
 
-def H_array(ncoord=1,pts=5,coordtype=['r'],mass=0.5,dq=0.001,qmax=1.0,qmin=2.0,V=[]):
+def H_array(pts=5,coordtype=['r'],mass=0.5,dq=0.001,qmax=1.0,qmin=2.0,V=[]):
     """ Kinetic Energy Array (dimensionality=2): see Eq A6a and A6b of JCP 96, 1982 (1992): note 
     constants are defined in constants module globally earlier
     The Hamiltonian has been converted to atomic units, e.g.
@@ -155,6 +154,7 @@ def H_array(ncoord=1,pts=5,coordtype=['r'],mass=0.5,dq=0.001,qmax=1.0,qmin=2.0,V
     mass given in amu; converted to atomic units here"""
     import numpy as np
     np.set_printoptions(suppress=False,threshold=np.nan,linewidth=np.nan)
+    ncoord=len(coordtype)
     n=ncoord*(pts)
     mass_conv=mass*(amu/e_mass)
 # In atomic units
@@ -163,9 +163,10 @@ def H_array(ncoord=1,pts=5,coordtype=['r'],mass=0.5,dq=0.001,qmax=1.0,qmin=2.0,V
         dq=(qmax-qmin)*((float(pts)+1.0)/(float(pts)-1.0))
     A=np.zeros((n,n),dtype=eval(numpy_precision))
 # One has been added to i and j inside to make this consistent with paper
+# Need to make sure that the multidimensional diagonal ements are added consistent with the potential... do this when working on multidimensional part 
     for x in range (ncoord):
-        prefactor=(np.pi**2)/(4*mass_conv*dq**2)
         if coordtype[x]=='r':
+            prefactor=(np.pi**2)/(4*mass_conv*dq**2)
             for i in range(pts):
                 for j in range(pts):
                     if i==j:
@@ -176,13 +177,17 @@ def H_array(ncoord=1,pts=5,coordtype=['r'],mass=0.5,dq=0.001,qmax=1.0,qmin=2.0,V
 # 0 to 2pi in appendix A section 4
         elif coordtype[x]=='phi':
             prefactor=(1.0)/(2*mass_conv)
+            m=int(np.divide(n,2))
+            if (2*m+1)!=n:
+                from sys import exit
+                exit('in phi coordinate 2m+1 != n, must use odd number of points')
             for i in range(pts):
                 for j in range(pts):
                     if i==j:
-                        A[i+x*pts,j+x*pts]=prefactor* (n1*(n1+1)/3) +V[i]
+                        A[i+x*pts,j+x*pts]=np.add(np.multiply(prefactor,np.divide(np.multiply(m,np.add(m,1)),3)),V[i])
                     else:
-                        A[i+x*pts,j+x*pts]=prefactor* ((-1)**(i - j)) * ( np.cos((np.pi*(i-j)) / (2 * n1 + 1) )  / 
-                                (2*np.sin(((np.pi*(i-j))/ (2 * n1 +1))**2 )))
+                        cosij=np.cos(np.divide(np.multiply(np.pi,np.subtract(i,j)),n))
+                        A[i+x*pts,j+x*pts]=np.multiply(np.multiply(np.power(-1,np.subtract(i,j)),prefactor),np.divide(cosij,np.multiply(2,np.subtract(1,np.power(cosij,2)))))
     #for x in A:
     #    print(x)
     return A
@@ -231,8 +236,8 @@ def main():
     Ener_spline=cubicspline(r,Energies)
     xnew = np.linspace(min(r),max(r), num=num_points)
     vfit=returnsplinevalue(Ener_spline,xnew)
-    Ham=H_array(ncoord=1,pts=len(r),mass=mass,V=Energies,qmax=max(r),qmin=min(r),coordtype=coordtypes)
-#    Ham=H_array(ncoord=1,pts=len(r),mass=mass,V=Energies,qmax=max(r),qmin=min(r),coordtype=['r'])
+    Ham=H_array(pts=len(r),mass=mass,V=Energies,qmax=max(r),qmin=min(r),coordtype=coordtypes)
+#    Ham=H_array(pts=len(r),mass=mass,V=Energies,qmax=max(r),qmin=min(r),coordtype=['r'])
     eigenval, eigenvec=np.linalg.eig(Ham)
     Esort=np.sort(eigenval*hartreetocm)
 # plotting stuff 
@@ -245,8 +250,10 @@ def main():
         mincut=[]
         maxcut=[]
         validE=[True]
+        maxpot=np.max(np.multiply(Energies,hartreetocm))
         for x in range(1,len(Esort)-1,1):
-            if np.multiply(0.95,(Esort[x]-Esort[x-1]))<(Esort[x+1]-Esort[x]):
+            if Esort[x]<maxpot*2:
+            #if np.multiply(0.95,(Esort[x]-Esort[x-1]))<(Esort[x+1]-Esort[x]):
                 validE.append(True)
             else:
                 Etoprint=x
@@ -273,6 +280,7 @@ def main():
         plt.axis()
         plt.show()
     else:
+# You need to use potential information to figure this out, simple enough for harmonic, tricker for angular, worse for multidimensional
         currentE=Esort[10]
         Etoprint=len(Esort)
         for x in range(10,len(Esort)-1,1):
