@@ -12,7 +12,7 @@ def constants(CODATA_year=2010):
     numpy_precision="np.float64"
     num_points=101
     num_print_digits=3
-    plotit=True
+    plotit=False
     global planckconstant, light_speed, Rydberg, electron_charge, amu, bohr, e_mass, hartreetocm
     light_speed= 299792458 # m/s
     if CODATA_year==2010:
@@ -77,7 +77,8 @@ def readpotential(inp,r_units='bohr'):
         if x[0] not in commentoutchars:
             if 'mass' in x.lower() and mass==0:
                 mass=rx.findall(x)
-                mass=float(mass[0])
+                for x in range(len(mass)):
+                    mass[x]=float(mass[x])
                 print('using reduced mass of {0} amu.'.format(mass))
             elif 'mass' in x.lower():
                 from sys import exit
@@ -98,15 +99,26 @@ def readpotential(inp,r_units='bohr'):
                 r_unitconversion=(1.0/bohr)
             else:
                 linesplit=x.split()
-                if len(linesplit)==2:
-                    r.append(float(linesplit[0])*r_unitconversion)
-                    energy.append(float(linesplit[1]))
-                else:
+                rtmp=[]
+                for x in range(0,len(linesplit)-1):
+                    rtmp.append(float(linesplit[x])*r_unitconversion)
+                r.append(rtmp)
+                energy.append(float(linesplit[len(linesplit)-1]))
+                if len(r[-1])!=len(coordtypes):
                     from sys import exit
                     print(x)
-                    exit('line in potential not properly parsed')
+                    exit('number of coordinates given inconsistent with coordinate types given')
         else:
             print('{0} commented out'.format(x[1:].strip()))
+    if len(mass)!=len(coordtypes):
+        print('{0} masses given and {1} coordinate types give'.format(len(mass),len(coordtypes)))
+        from sys import exit
+        exit()
+    if len(mass)!=len(coordtypes):
+        print('{0} masses given and {1} coordinate types give'.format(len(mass),len(coordtypes)))
+        from sys import exit
+        exit()
+    print(len(r),len(mass),len(coordtypes))
     return (r,energy, mass, coordtypes)
 
 
@@ -156,12 +168,12 @@ def H_array(pts=5,coordtype=['r'],mass=0.5,dq=0.001,qmax=1.0,qmin=2.0,V=[]):
     np.set_printoptions(suppress=False,threshold=np.nan,linewidth=np.nan)
     ncoord=len(coordtype)
     n=ncoord*(pts)
-    mass_conv=mass*(amu/e_mass)
 # In atomic units
     A=np.zeros((n,n),dtype=eval(numpy_precision))
 # One has been added to i and j inside to make this consistent with paper
 # Need to make sure that the multidimensional diagonal ements are added consistent with the potential... do this when working on multidimensional part 
     for x in range (ncoord):
+        mass_conv=mass[x]*(amu/e_mass)
         if coordtype[x]=='r':
             n1=pts+1
             if dq==0.001:
