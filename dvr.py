@@ -12,7 +12,7 @@ def constants(CODATA_year=2010):
     numpy_precision="np.float64"
     num_points=101
     num_print_digits=3
-    plotit=False
+    plotit=True
     global planckconstant, light_speed, Rydberg, electron_charge, amu, bohr, e_mass, hartreetocm
     light_speed= 299792458 # m/s
     if CODATA_year==2010:
@@ -252,8 +252,8 @@ def main():
         validE=[True]
         maxpot=np.max(np.multiply(Energies,hartreetocm))
         for x in range(1,len(Esort)-1,1):
-            if Esort[x]<maxpot*2:
-            #if np.multiply(0.95,(Esort[x]-Esort[x-1]))<(Esort[x+1]-Esort[x]):
+            #if Esort[x]<maxpot*2:
+            if np.multiply(0.95,(Esort[x]-Esort[x-1]))<(Esort[x+1]-Esort[x]):
                 validE.append(True)
             else:
                 Etoprint=x
@@ -281,9 +281,9 @@ def main():
         plt.show()
     else:
 # You need to use potential information to figure this out, simple enough for harmonic, tricker for angular, worse for multidimensional
-        currentE=Esort[10]
+        currentE=Esort[5]
         Etoprint=len(Esort)
-        for x in range(10,len(Esort)-1,1):
+        for x in range(5,len(Esort)-1,1):
             if np.abs(np.subtract(currentE,Esort[x]))<5.0:
                 currentE=Esort[x]
             elif Esort[x]<np.multiply(currentE,0.95):
@@ -293,7 +293,7 @@ def main():
                 break
     print('Eigenvalues')
     for x in range(Etoprint):
-        print('{0:.{1}f}'.format(round(Esort[x+1]-Esort[0],num_print_digits),num_print_digits))
+        print('{0:.{1}f}'.format(round(Esort[x],num_print_digits),num_print_digits))
 
 
 # jacobian stuff
