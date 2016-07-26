@@ -1,5 +1,8 @@
 ! From VO CCSD(T)/avdz-nr/f12a cas orbitals Reduced mass in kg is 2.02137E-26
 ! points 3.2 and 3.4 come from a 5th order polynomial fit to the other 7 points 51v 50.9439595 16O 15.99491461956 
+mass=12.17296068
+radial
+bohr
 2.7	2.114891E-02
 2.8	9.127884E-03
 2.9	2.084223E-03
