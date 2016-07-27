@@ -178,8 +178,8 @@ def H_array(pts=[],coordtype=['r'],mass=0.5,dq=0.001,qmax=1.0,qmin=2.0,V=[]):
         if coordtype[x]=='r':
             n1=pts[x]+1
             if dq==0.001:
-                dq=(qmax-qmin)*((float(pts[x])+1.0)/(float(pts[x])-1.0))
-            prefactor=(np.pi**2)/(4*mass_conv*dq**2)
+                dq=np.multiply(np.subtract(qmax,qmin),np.divide(np.add(float(pts[x]),1.0),np.subtract(float(pts[x]),1.0)))
+            prefactor=np.divide(np.power(np.pi,2),np.multiply(np.multiply(4,mass_conv),np.power(dq,2)))
             print(gridstart)
             for i in range(pts[x]):
                 for j in range(pts[x]):
@@ -187,7 +187,9 @@ def H_array(pts=[],coordtype=['r'],mass=0.5,dq=0.001,qmax=1.0,qmin=2.0,V=[]):
                         A[np.sum(i,gridstart),np.sum(i,gridstart)]=np.add(np.multiply(prefactor,np.subtract(\
                                 np.divide(np.add(np.multiply(2,np.power(n1,2)),1),3),np.power(np.sin(np.divide(np.multiply(np.add(i,1),np.pi),n1)),-2))), V[i])
                     else:
-                        A[np.sum(i,gridstart),np.sum(j,gridstart)]=np.multiply(np.multiply(prefactor,np.power(-1,np.subtract(i,j))),(np.sin((np.pi*(i-j)) / (2 * n1) )**-2  - np.sin((np.pi*(i+j+2)) / (2 * n1))**-2))
+                        A[np.sum(i,gridstart),np.sum(j,gridstart)]=np.multiply(np.multiply(prefactor,np.power(-1,np.subtract(i,j)))\
+                                ,np.subtract(np.power(np.sin(np.divide(np.multiply(np.pi,np.subtract(i,j)) , np.multiply(2 ,n1) )),-2) , \
+                                np.power(np.sin(np.divide(np.multiply(np.pi,np.add(i,np.add(j,2))) , np.multiply(2 , n1))),-2)))
 # 0 to 2pi in appendix A section 4
         elif coordtype[x]=='phi':
             prefactor=(1.0)/(2*mass_conv)
