@@ -155,7 +155,7 @@ def returnsplinemin(x,y):
     return (xmin,returnsplinevalue(spline,xmin))
 #    return spline.interpolate.derivative().roots()
 
-def H_array(pts=5,coordtype=['r'],mass=0.5,dq=0.001,qmax=1.0,qmin=2.0,V=[]):
+def H_array(pts=[],coordtype=['r'],mass=0.5,dq=0.001,qmax=1.0,qmin=2.0,V=[]):
     """ Kinetic Energy Array (dimensionality=2): see Eq A6a and A6b of JCP 96, 1982 (1992): note 
     constants are defined in constants module globally earlier
     The Hamiltonian has been converted to atomic units, e.g.
@@ -167,25 +167,27 @@ def H_array(pts=5,coordtype=['r'],mass=0.5,dq=0.001,qmax=1.0,qmin=2.0,V=[]):
     import numpy as np
     np.set_printoptions(suppress=False,threshold=np.nan,linewidth=np.nan)
     ncoord=len(coordtype)
-    n=ncoord*(pts)
+    n=np.sum(pts)
 # In atomic units
     A=np.zeros((n,n),dtype=eval(numpy_precision))
 # One has been added to i and j inside to make this consistent with paper
 # Need to make sure that the multidimensional diagonal ements are added consistent with the potential... do this when working on multidimensional part 
     for x in range (ncoord):
         mass_conv=mass[x]*(amu/e_mass)
+        gridstart=np.sum(pts[0:x-1],dtype=int)
         if coordtype[x]=='r':
-            n1=pts+1
+            n1=pts[x]+1
             if dq==0.001:
-                dq=(qmax-qmin)*((float(pts)+1.0)/(float(pts)-1.0))
+                dq=(qmax-qmin)*((float(pts[x])+1.0)/(float(pts[x])-1.0))
             prefactor=(np.pi**2)/(4*mass_conv*dq**2)
-            for i in range(pts):
-                for j in range(pts):
+            print(gridstart)
+            for i in range(pts[x]):
+                for j in range(pts[x]):
                     if i==j:
-                        A[i+x*pts,j+x*pts]=prefactor* (((2*n1**2+1)/3)-(np.sin(((i+1)*np.pi)/n1)**-2)) +V[i]
+                        A[np.sum(i,gridstart),np.sum(i,gridstart)]=np.add(np.multiply(prefactor,np.subtract(\
+                                np.divide(np.add(np.multiply(2,np.power(n1,2)),1),3),np.power(np.sin(np.divide(np.multiply(np.add(i,1),np.pi),n1)),-2))), V[i])
                     else:
-                        A[i+x*pts,j+x*pts]=prefactor* ((-1)**(i - j)) * ( np.sin((np.pi*(i-j)) / (2 * n1) )**-2  - 
-                                np.sin((np.pi*(i+j+2)) / (2 * n1))**-2)
+                        A[np.sum(i,gridstart),np.sum(j,gridstart)]=np.multiply(np.multiply(prefactor,np.power(-1,np.subtract(i,j))),(np.sin((np.pi*(i-j)) / (2 * n1) )**-2  - np.sin((np.pi*(i+j+2)) / (2 * n1))**-2))
 # 0 to 2pi in appendix A section 4
         elif coordtype[x]=='phi':
             prefactor=(1.0)/(2*mass_conv)
@@ -193,13 +195,14 @@ def H_array(pts=5,coordtype=['r'],mass=0.5,dq=0.001,qmax=1.0,qmin=2.0,V=[]):
             if (2*m+1)!=pts:
                 from sys import exit
                 exit('in phi coordinate 2m+1 != n, must use odd number of points')
-            for i in range(pts):
-                for j in range(pts):
+            for i in range(pts[x]):
+                for j in range(pts[x]):
                     if i==j:
-                        A[i+x*pts,j+x*pts]=np.add(np.multiply(prefactor,np.divide(np.multiply(m,np.add(m,1)),3)),V[i])
+                        A[np.sum(i,gridstart),np.sum(j,gridstart)]=np.add(np.multiply(prefactor,np.divide(np.multiply(m,np.add(m,1)),3)),V[i])
                     else:
                         cosij=np.cos(np.divide(np.multiply(np.pi,np.subtract(i,j)),n))
-                        A[i+x*pts,j+x*pts]=np.multiply(np.multiply(np.power(-1,np.subtract(i,j)),prefactor),np.divide(cosij,np.multiply(2,np.subtract(1,np.power(cosij,2)))))
+                        A[np.sum(i,gridstart),np.sum(j,gridstart)]=\
+                                np.multiply(np.multiply(np.power(-1,np.subtract(i,j)),prefactor),np.divide(cosij,np.multiply(2,np.subtract(1,np.power(cosij,2)))))
     #for x in A:
     #    print(x)
     return A
@@ -248,11 +251,12 @@ def main():
     Ener_spline=cubicspline(r,Energies)
     xnew = np.linspace(min(r),max(r), num=num_points)
     vfit=returnsplinevalue(Ener_spline,xnew)
-    Ham=H_array(pts=len(r),mass=mass,V=Energies,qmax=max(r),qmin=min(r),coordtype=coordtypes)
+    Ham=H_array(pts=[len(r)],mass=mass,V=Energies,qmax=max(r),qmin=min(r),coordtype=coordtypes)
 #    Ham=H_array(pts=len(r),mass=mass,V=Energies,qmax=max(r),qmin=min(r),coordtype=['r'])
     eigenval, eigenvec=np.linalg.eig(Ham)
     Esort=np.sort(eigenval*hartreetocm)
 # plotting stuff 
+    Etoprint=int(len(Esort)/2)
     if plotit:
         vfitcm=vfit*hartreetocm
         import matplotlib.pyplot as plt
@@ -261,49 +265,23 @@ def main():
         plt.plot(xnew,vfitcm,linestyle='solid',marker='None')
         mincut=[]
         maxcut=[]
-        validE=[True]
         maxpot=np.max(np.multiply(Energies,hartreetocm))
-        for x in range(1,len(Esort)-1,1):
-            #if Esort[x]<maxpot*2:
-            if np.multiply(0.95,(Esort[x]-Esort[x-1]))<(Esort[x+1]-Esort[x]):
-                validE.append(True)
-            else:
-                Etoprint=x
-                for y in range(x,len(Esort)+1):
-                    validE.append(False)
-                break
-        for x in range(len(Esort)):
-            if validE[x]:
-                for y in range(len(xnew)):
-                    if Esort[x]>vfitcm[y]:
-                        mincut.append(xnew[y])
-                        break
-        for x in range(len(Esort)):
-            if validE[x]:
-                for y in range(len(xnew)-1,1,-1):
-                    if Esort[x]>vfitcm[y]:
-                        maxcut.append(xnew[y])
-                        break
-        for x in range(len(Esort)):
-            if validE[x]:
-                plt.plot((mincut[x],maxcut[x]),(Esort[x],Esort[x]),linestyle='solid')
+        for x in range(len(Etoprint)):
+            for y in range(len(xnew)):
+                if Esort[x]>vfitcm[y]:
+                    mincut.append(xnew[y])
+                    break
+        for x in range(len(Etoprint)):
+            for y in range(len(xnew)-1,1,-1):
+                if Esort[x]>vfitcm[y]:
+                    maxcut.append(xnew[y])
+                    break
+        for x in range(len(Etoprint)):
+            plt.plot((mincut[x],maxcut[x]),(Esort[x],Esort[x]),linestyle='solid')
 #    plt.legend(['Points', 'Cubic Spline'])
         plt.title('Cubic-spline interpolation')
         plt.axis()
         plt.show()
-    else:
-# You need to use potential information to figure this out, simple enough for harmonic, tricker for angular, worse for multidimensional
-        currentE=Esort[5]
-        Etoprint=len(Esort)
-        for x in range(5,len(Esort)-1,1):
-            if np.abs(np.subtract(currentE,Esort[x]))<5.0:
-                currentE=Esort[x]
-            elif Esort[x]<np.multiply(currentE,0.95):
-                currentE=Esort[x]
-            else:
-                Etoprint=x
-                break
-    print('Eigenvalues')
     for x in range(Etoprint):
         print('{0:.{1}f}'.format(round(Esort[x],num_print_digits),num_print_digits))
 
