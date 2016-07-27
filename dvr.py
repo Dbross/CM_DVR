@@ -84,7 +84,7 @@ def readpotential(inp,r_units='bohr'):
                 from sys import exit
                 exit('mass defined in potential twice')
             elif 'bohr' in x.lower():
-                print('reading potential as bohr, this should only be set once and the line it is on is ignored.')
+                print('reading potential as bohr, this should only be set once.')
                 r_unitconversion=1.0
             elif types[0] in x.lower() or types[1] in x.lower() or types[2] in x.lower():
                 typelist=x.lower().replace(',',' ').split()
@@ -95,7 +95,7 @@ def readpotential(inp,r_units='bohr'):
                 #    from sys import exit
                 #    exit('More coordinate types than coordinates')
             elif 'angstrom' in x.lower():
-                print('reading potential as angstrom, this should only be set once and the line it is on is ignored.')
+                print('reading potential as angstrom, this should only be set once.')
                 r_unitconversion=(1.0/bohr)
             else:
                 linesplit=x.split()
@@ -118,7 +118,6 @@ def readpotential(inp,r_units='bohr'):
         print('{0} masses given and {1} coordinate types give'.format(len(mass),len(coordtypes)))
         from sys import exit
         exit()
-    print(len(r),len(mass),len(coordtypes))
     return (r,energy, mass, coordtypes)
 
 
@@ -155,7 +154,42 @@ def returnsplinemin(x,y):
     return (xmin,returnsplinevalue(spline,xmin))
 #    return spline.interpolate.derivative().roots()
 
-def H_array(pts=[],coordtype=['r'],mass=0.5,dq=0.001,qmax=1.0,qmin=2.0,V=[]):
+def H_array_1d(pts=5,coordtype='r',mass=0.5,qmin=1.0,qmax=2.0):
+    import numpy as np
+    n=pts
+    A=np.zeros((n,n),dtype=eval(numpy_precision))
+# In atomic units
+# One has been added to i and j inside to make this consistent with paper
+    mass_conv=mass*(amu/e_mass)
+    for i in range(pts):
+        for j in range(pts):
+            if coordtype=='r':
+                n1=pts+1
+                dq=np.multiply(np.subtract(qmax,qmin),np.divide(np.add(float(pts),1.0),np.subtract(float(pts),1.0)))
+                prefactor=np.divide(np.power(np.pi,2),np.multiply(np.multiply(4,mass_conv),np.power(dq,2)))
+                if i==j:
+                    A[i,i]=np.multiply(prefactor,np.subtract(\
+                            np.divide(np.add(np.multiply(2,np.power(n1,2)),1),3),np.power(np.sin(np.divide(np.multiply(np.add(i,1),np.pi),n1)),-2)))
+                else:
+                    A[i,j]=np.multiply(np.multiply(prefactor,np.power(-1,np.subtract(i,j)))\
+                            ,np.subtract(np.power(np.sin(np.divide(np.multiply(np.pi,np.subtract(i,j)) , np.multiply(2 ,n1) )),-2) , \
+                            np.power(np.sin(np.divide(np.multiply(np.pi,np.add(i,np.add(j,2))) , np.multiply(2 , n1))),-2)))
+# 0 to 2pi in appendix A section 4
+            elif coordtype[x]=='phi':
+                prefactor=(1.0)/(2*mass_conv)
+                m=int(np.divide(pts,2))
+                if (2*m+1)!=pts:
+                    from sys import exit
+                    exit('in phi coordinate 2m+1 != n, must use odd number of points')
+                if i==j:
+                    A[np.sum(i,gridstart),np.sum(j,gridstart)]=np.add(np.multiply(prefactor,np.divide(np.multiply(m,np.add(m,1)),3)),V[i])
+                else:
+                    cosij=np.cos(np.divide(np.multiply(np.pi,np.subtract(i,j)),n))
+                    A[np.sum(i,gridstart),np.sum(j,gridstart)]=\
+                            np.multiply(np.multiply(np.power(-1,np.subtract(i,j)),prefactor),np.divide(cosij,np.multiply(2,np.subtract(1,np.power(cosij,2)))))
+    return A
+
+def H_array(pts=5,coordtype=['r'],mass=[0.5],dq=0.001,qmin=[1.0],qmax=[2.0],V=[]):
     """ Kinetic Energy Array (dimensionality=2): see Eq A6a and A6b of JCP 96, 1982 (1992): note 
     constants are defined in constants module globally earlier
     The Hamiltonian has been converted to atomic units, e.g.
@@ -167,70 +201,30 @@ def H_array(pts=[],coordtype=['r'],mass=0.5,dq=0.001,qmax=1.0,qmin=2.0,V=[]):
     import numpy as np
     np.set_printoptions(suppress=False,threshold=np.nan,linewidth=np.nan)
     ncoord=len(coordtype)
-    n=np.sum(pts)
-# In atomic units
-    A=np.zeros((n,n),dtype=eval(numpy_precision))
-# One has been added to i and j inside to make this consistent with paper
-# Need to make sure that the multidimensional diagonal ements are added consistent with the potential... do this when working on multidimensional part 
-    for x in range (ncoord):
-        mass_conv=mass[x]*(amu/e_mass)
-        gridstart=np.sum(pts[0:x-1],dtype=int)
-        if coordtype[x]=='r':
-            n1=pts[x]+1
-            if dq==0.001:
-                dq=np.multiply(np.subtract(qmax,qmin),np.divide(np.add(float(pts[x]),1.0),np.subtract(float(pts[x]),1.0)))
-            prefactor=np.divide(np.power(np.pi,2),np.multiply(np.multiply(4,mass_conv),np.power(dq,2)))
-            print(gridstart)
-            for i in range(pts[x]):
-                for j in range(pts[x]):
-                    if i==j:
-                        A[np.sum(i,gridstart),np.sum(i,gridstart)]=np.add(np.multiply(prefactor,np.subtract(\
-                                np.divide(np.add(np.multiply(2,np.power(n1,2)),1),3),np.power(np.sin(np.divide(np.multiply(np.add(i,1),np.pi),n1)),-2))), V[i])
-                    else:
-                        A[np.sum(i,gridstart),np.sum(j,gridstart)]=np.multiply(np.multiply(prefactor,np.power(-1,np.subtract(i,j)))\
-                                ,np.subtract(np.power(np.sin(np.divide(np.multiply(np.pi,np.subtract(i,j)) , np.multiply(2 ,n1) )),-2) , \
-                                np.power(np.sin(np.divide(np.multiply(np.pi,np.add(i,np.add(j,2))) , np.multiply(2 , n1))),-2)))
-# 0 to 2pi in appendix A section 4
-        elif coordtype[x]=='phi':
-            prefactor=(1.0)/(2*mass_conv)
-            m=int(np.divide(pts,2))
-            if (2*m+1)!=pts:
-                from sys import exit
-                exit('in phi coordinate 2m+1 != n, must use odd number of points')
-            for i in range(pts[x]):
-                for j in range(pts[x]):
-                    if i==j:
-                        A[np.sum(i,gridstart),np.sum(j,gridstart)]=np.add(np.multiply(prefactor,np.divide(np.multiply(m,np.add(m,1)),3)),V[i])
-                    else:
-                        cosij=np.cos(np.divide(np.multiply(np.pi,np.subtract(i,j)),n))
-                        A[np.sum(i,gridstart),np.sum(j,gridstart)]=\
-                                np.multiply(np.multiply(np.power(-1,np.subtract(i,j)),prefactor),np.divide(cosij,np.multiply(2,np.subtract(1,np.power(cosij,2)))))
-    #for x in A:
-    #    print(x)
-    return A
-# I'll probably need to worry about the indicies this runs over when I attempt to generalize to multiple dimensions
-#    dims=[]
-#    for i in range(ncoord):
-#        dims.append(pts)
-#    indicies=np.zeros(dims)
-# Slightly better indicies, in a list instead
-#    from itertools import combinations_with_replacement
-#    possiblevals=''
-#    for i in range(pts):
-#        possiblevals=possiblevals+str(i+1)
-#    tmpindicies=combinations_with_replacement(possiblevals,ncoord)
-#    indicies=[]
-#    for x in tmpindicies:
-#        tmpind2=[]
-#        for y in range(len(x)):
-#            tmpind2.append(int(x[y]))
-#        indicies.append(tmpind2)
-#    print(indicies)
-# Idea to vectorize this function... not sure how to actually use position to evaluate, was thinking of setting up a sympy expression but gave up
-#    A=np.identity(dimension,dtype=eval(numpy_precision))
-#    A=np.piecewise(A,[A==0, A==1], [1, 1])
-# See also http://stackoverflow.com/questions/21830112/evaluating-the-result-of-sympy-lambdify-on-a-numpy-mesgrid
-# http://docs.scipy.org/doc/numpy/reference/generated/numpy.mgrid.html
+    ptspercoord=np.power(pts,np.divide(1,ncoord))
+    if int(ptspercoord)!=ptspercoord:
+        from sys import exit
+        exit('not a symmetric grid')
+    ptspercoord=int(ptspercoord)
+    #A=np.zeros((pts,pts),dtype=eval(numpy_precision))
+#    oned=[]
+#    for x in range(ncoord):
+#        oned.append(H_array_1d(ptspercoord,mass=mass[x],qmin=qmin[x]))
+    A=np.arange(ptspercoord,dtype=int)
+    # Need to use logic here based on dimensionality, come up with indicies that make sense, repeat them (as makes sense), and use THAT to call appropriate elements of 1d potentials
+    # I think doing this will work
+    # V is only needed here, on diagonal
+    # need to add ALL appropriate lements
+    # doing this by hand for 1d,2d,3d,4d seems to make sense to me...
+    A=np.tile(A,(pts,ptspercoord))
+    from sys import exit
+    exit()
+# How to get I J arrays; this is for 1D...
+#    A=np.arange(1,pts+1,dtype=np.int)
+#    I=np.tile(A,(pts,1))
+#    J=I.transpose()
+
+
 
 def main():
     constants(CODATA_year=2010)
@@ -247,13 +241,15 @@ def main():
     coordtypedict={'radial': 'r', 'angular_2pi': 'phi', 'angular_pi': 'theta'}
     for x in range(len(coordtypes)):
         coordtypes[x]=coordtypedict[coordtypes[x]]
-    xmin,emin=returnsplinemin(r_raw,Energies_raw)
-    r=r_raw-np.min(xmin)
-    Energies=Energies_raw-np.min(emin)
-    Ener_spline=cubicspline(r,Energies)
-    xnew = np.linspace(min(r),max(r), num=num_points)
-    vfit=returnsplinevalue(Ener_spline,xnew)
-    Ham=H_array(pts=[len(r)],mass=mass,V=Energies,qmax=max(r),qmin=min(r),coordtype=coordtypes)
+#    xmin,emin=returnsplinemin(r_raw,Energies_raw)
+#    r=r_raw-np.min(xmin)
+#    Energies=Energies_raw-np.min(emin)
+#    Ener_spline=cubicspline(r,Energies)
+#    xnew = np.linspace(min(r),max(r), num=num_points)
+#    vfit=returnsplinevalue(Ener_spline,xnew)
+    r=r_raw
+    Energies=Energies_raw
+    Ham=H_array(pts=len(r),mass=mass,V=Energies,qmax=np.max(r),qmin=np.min(r),coordtype=coordtypes)
 #    Ham=H_array(pts=len(r),mass=mass,V=Energies,qmax=max(r),qmin=min(r),coordtype=['r'])
     eigenval, eigenvec=np.linalg.eig(Ham)
     Esort=np.sort(eigenval*hartreetocm)
@@ -299,7 +295,5 @@ def main():
 #    from sys import exit
 #    exit()
 
-
 if __name__=="__main__":
     main()
-
