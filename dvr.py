@@ -205,33 +205,29 @@ def H_array(pts=5,coordtype=['r'],mass=[0.5],dq=0.001,qmin=[1.0],qmax=[2.0],V=[]
     import numpy as np
     np.set_printoptions(suppress=False,threshold=np.nan,linewidth=np.nan)
     ncoord=len(coordtype)
-    ptspercoord=np.power(pts,np.divide(1,ncoord))
-    if int(ptspercoord)!=ptspercoord:
-        from sys import exit
-        exit('not a symmetric grid')
-    ptspercoord=int(ptspercoord)
-    A=np.zeros((pts,pts),dtype=eval(numpy_precision))
+    totpts=1
+    for x in range(len(pts)):
+        totpts=totpts*pts[x]
+    A=np.zeros((totpts,totpts),dtype=eval(numpy_precision))
     if ncoord==1:
         qmin=[qmin]
         qmax=[qmax]
-        D1=H_array_1d(ptspercoord,mass=mass[0],qmin=qmin[0],qmax=qmax[0])
-        indices=np.array(np.meshgrid(np.arange(ptspercoord),np.arange(ptspercoord))).T.reshape(-1,2)
+        D1=H_array_1d(pts[0],mass=mass[0],qmin=qmin[0],qmax=qmax[0])
+        indices=np.array(np.meshgrid(np.arange(pts[0]),np.arange(pts[0]))).T.reshape(-1,2)
     if ncoord==2:
-        D1=H_array_1d(ptspercoord,mass=mass[0],qmin=qmin[0],qmax=qmax[0])
-        D2=H_array_1d(ptspercoord,mass=mass[1],qmin=qmin[1],qmax=qmax[1])
-        indices=np.array(np.meshgrid(np.arange(ptspercoord),np.arange(ptspercoord),np.arange(ptspercoord),np.arange(ptspercoord))).T.reshape(-1,4)
+        D1=H_array_1d(pts[0],mass=mass[0],qmin=qmin[0],qmax=qmax[0])
+        D2=H_array_1d(pts[1],mass=mass[1],qmin=qmin[1],qmax=qmax[1])
+        indices=np.array(np.meshgrid(np.arange(pts[0]),np.arange(pts[1]),np.arange(pts[1]),np.arange(pts[0]))).T.reshape(-1,4)
     if ncoord==3:
-        D1=H_array_1d(ptspercoord,mass=mass[0],qmin=qmin[0],qmax=qmax[0])
-        D2=H_array_1d(ptspercoord,mass=mass[1],qmin=qmin[1],qmax=qmax[1])
-        D3=H_array_1d(ptspercoord,mass=mass[2],qmin=qmin[2],qmax=qmax[2])
-        indices=np.array(np.meshgrid(np.arange(ptspercoord),np.arange(ptspercoord),np.arange(ptspercoord),np.arange(ptspercoord)\
-                ,np.arange(ptspercoord),np.arange(ptspercoord))).T.reshape(-1,6)
+        D1=H_array_1d(pts[0],mass=mass[0],qmin=qmin[0],qmax=qmax[0])
+        D2=H_array_1d(pts[1],mass=mass[1],qmin=qmin[1],qmax=qmax[1])
+        D3=H_array_1d(pts[2],mass=mass[2],qmin=qmin[2],qmax=qmax[2])
+#        indices=np.array(np.meshgrid(np.arange(ptspercoord),np.arange(ptspercoord),np.arange(ptspercoord),np.arange(ptspercoord)\
+#                ,np.arange(ptspercoord),np.arange(ptspercoord))).T.reshape(-1,6)
 #    from itertools import product
 #    indices=np.array([item for item in product(range(ptspercoord),repeat=ncoord*2)],dtype=int)
     indices=np.split(indices,ncoord*2,axis=1) 
     it= np.nditer(A, flags=['c_index'], op_flags=['writeonly'])
-    B=[]
-    B1=[]
     k=0
     if ncoord==1:
         while not it.finished:
@@ -281,7 +277,10 @@ def main():
 #    vfit=returnsplinevalue(Ener_spline,xnew)
     r=r_raw
     Energies=Energies_raw
-    Ham=H_array(pts=r.shape[1],mass=mass,V=Energies,qmax=np.amax(r,axis=1),qmin=np.amin(r,axis=1),coordtype=coordtypes)
+    pts=[]
+    for x in range(len(r)):
+        pts.append(len(np.unique(r[x])))
+    Ham=H_array(pts=pts,mass=mass,V=Energies,qmax=np.amax(r,axis=1),qmin=np.amin(r,axis=1),coordtype=coordtypes)
 #    Ham=H_array(pts=len(r),mass=mass,V=Energies,qmax=max(r),qmin=min(r),coordtype=['r'])
     eigenval, eigenvec=np.linalg.eig(Ham)
     Esort=np.sort(eigenval*hartreetocm)
