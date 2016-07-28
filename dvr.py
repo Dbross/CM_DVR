@@ -110,6 +110,10 @@ def readpotential(inp,r_units='bohr'):
                     exit('number of coordinates given inconsistent with coordinate types given')
         else:
             print('{0} commented out'.format(x[1:].strip()))
+    rnew=[]
+    for i in range(len(r[0])):
+        rtmp=[r[j][i] for j in range(len(r))]
+        rnew.append(rtmp)
     if len(mass)!=len(coordtypes):
         print('{0} masses given and {1} coordinate types give'.format(len(mass),len(coordtypes)))
         from sys import exit
@@ -118,7 +122,7 @@ def readpotential(inp,r_units='bohr'):
         print('{0} masses given and {1} coordinate types give'.format(len(mass),len(coordtypes)))
         from sys import exit
         exit()
-    return (r,energy, mass, coordtypes)
+    return (rnew,energy, mass, coordtypes)
 
 
 def jacobi(A,b,N=25,x=None):
@@ -211,17 +215,24 @@ def H_array(pts=5,coordtype=['r'],mass=[0.5],dq=0.001,qmin=[1.0],qmax=[2.0],V=[]
         qmin=[qmin]
         qmax=[qmax]
         D1=H_array_1d(ptspercoord,mass=mass[0],qmin=qmin[0],qmax=qmax[0])
+        indices=np.array(np.meshgrid(np.arange(ptspercoord),np.arange(ptspercoord))).T.reshape(-1,2)
     if ncoord==2:
         D1=H_array_1d(ptspercoord,mass=mass[0],qmin=qmin[0],qmax=qmax[0])
         D2=H_array_1d(ptspercoord,mass=mass[1],qmin=qmin[1],qmax=qmax[1])
+        indices=np.array(np.meshgrid(np.arange(ptspercoord),np.arange(ptspercoord),np.arange(ptspercoord),np.arange(ptspercoord))).T.reshape(-1,4)
     if ncoord==3:
         D1=H_array_1d(ptspercoord,mass=mass[0],qmin=qmin[0],qmax=qmax[0])
         D2=H_array_1d(ptspercoord,mass=mass[1],qmin=qmin[1],qmax=qmax[1])
         D3=H_array_1d(ptspercoord,mass=mass[2],qmin=qmin[2],qmax=qmax[2])
-    from itertools import product
-    indices=np.array([item for item in product(range(ptspercoord),repeat=ncoord*2)],dtype=int)
+        indices=np.array(np.meshgrid(np.arange(ptspercoord),np.arange(ptspercoord),np.arange(ptspercoord),np.arange(ptspercoord)\
+                ,np.arange(ptspercoord),np.arange(ptspercoord))).T.reshape(-1,6)
+#    from itertools import product
+#    indices=np.array([item for item in product(range(ptspercoord),repeat=ncoord*2)],dtype=int)
     indices=np.split(indices,ncoord*2,axis=1) 
     it= np.nditer(A, flags=['c_index'], op_flags=['writeonly'])
+    B=[]
+    B1=[]
+    k=0
     if ncoord==1:
         while not it.finished:
             i=indices[0][it.index]
@@ -231,15 +242,21 @@ def H_array(pts=5,coordtype=['r'],mass=[0.5],dq=0.001,qmin=[1.0],qmax=[2.0],V=[]
             else:
                 it[0]=D1[i,i1]
             it.iternext()
+    elif ncoord==2:
+        while not it.finished:
+            i=indices[0][it.index] 
+            i1=indices[3][it.index]
+            j=indices[1][it.index] 
+            j1=indices[2][it.index]
+            if i==i1 and j==j1:
+                it[0]=np.add(np.add(D1[i,i1],D2[j,j1]),V[k])
+                k+=1
+            elif i==i1:
+                it[0]=D2[j,j1]
+            elif j==j1:
+                it[0]=D1[i,i1]
+            it.iternext()
     return A
-    # Need to use logic here based on dimensionality, come up with indices that make sense, repeat them (as makes sense), and use THAT to call appropriate elements of 1d potentials
-    # I think doing this will work
-    # V is only needed here, on diagonal
-    # need to add ALL appropriate lements
-    # doing this by hand for 1d,2d,3d,4d seems to make sense to me...
-# How to get I J arrays; this is for 1D...
-
-
 
 def main():
     constants(CODATA_year=2010)
@@ -264,7 +281,7 @@ def main():
 #    vfit=returnsplinevalue(Ener_spline,xnew)
     r=r_raw
     Energies=Energies_raw
-    Ham=H_array(pts=len(r),mass=mass,V=Energies,qmax=np.max(r),qmin=np.min(r),coordtype=coordtypes)
+    Ham=H_array(pts=r.shape[1],mass=mass,V=Energies,qmax=np.amax(r,axis=1),qmin=np.amin(r,axis=1),coordtype=coordtypes)
 #    Ham=H_array(pts=len(r),mass=mass,V=Energies,qmax=max(r),qmin=min(r),coordtype=['r'])
     eigenval, eigenvec=np.linalg.eig(Ham)
     Esort=np.sort(eigenval*hartreetocm)
