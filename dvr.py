@@ -191,6 +191,20 @@ def H_array_1d(pts=5,coordtype='r',mass=0.5,qmin=1.0,qmax=2.0):
                     cosij=np.cos(np.divide(np.multiply(np.pi,np.subtract(i,j)),n))
                     A[np.sum(i,gridstart),np.sum(j,gridstart)]=\
                             np.multiply(np.multiply(np.power(-1,np.subtract(i,j)),prefactor),np.divide(cosij,np.multiply(2,np.subtract(1,np.power(cosij,2)))))
+            elif coordtype[x]=='theta':
+                n1=pts+1
+                prefactor=np.divide(1.0,np.multiply(4,mass_conv))
+                if i==j:
+                    A[i,i]=np.multiply(prefactor,np.subtract(\
+                            np.divide(np.add(np.multiply(2,np.power(n1,2)),1),3),np.power(np.sin(np.divide(np.multiply(np.add(i,1),np.pi),n1)),-2)))
+                else:
+                    A[i,j]=np.multiply(np.multiply(prefactor,np.power(-1,np.subtract(i,j)))\
+                            ,np.subtract(np.power(np.sin(np.divide(np.multiply(np.pi,np.subtract(i,j)) , np.multiply(2 ,n1) )),-2) , \
+                            np.power(np.sin(np.divide(np.multiply(np.pi,np.add(i,np.add(j,2))) , np.multiply(2 , n1))),-2)))
+                pass
+            else:
+                from sys import exit
+                exit('coordinate type not recongized')
     return A
 
 def H_array(pts=5,coordtype=['r'],mass=[0.5],dq=0.001,qmin=[1.0],qmax=[2.0],V=[]):
