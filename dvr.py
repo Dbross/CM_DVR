@@ -254,9 +254,9 @@ def H_array(pts=5,coordtype=['r'],mass=[0.5],dq=0.001,qmin=[1.0],qmax=[2.0],V=[]
             it.iternext()
     elif ncoord==2:
         while not it.finished:
-            i=indices[0][it.index] 
+            i=indices[0][it.index]
             i1=indices[3][it.index]
-            j=indices[1][it.index] 
+            j=indices[1][it.index]
             j1=indices[2][it.index]
             if i==i1 and j==j1:
                 it[0]=np.add(np.add(D1[i,i1],D2[j,j1]),V[k])
