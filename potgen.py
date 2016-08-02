@@ -36,8 +36,11 @@ class q:
 def massweightequal(dq1,m1,dq2,m2):
     import numpy as np
     if np.abs(np.subtract(np.multiply(np.power(dq1,2),m1),np.multiply(np.power(dq2,2),m2)))> 1.0E-07:
-        from sys import exit
-        exit('mass weighted grid spacings are unequal')
+        print('mass weighted spacing unequal')
+        print(dq1,m1,dq2,m2)
+        print(m1*dq1**2,m2*dq2**2)
+        #from sys import exit
+        #exit('mass weighted grid spacings are unequal')
 
 def main():
     fieldlength=18
