@@ -1,4 +1,6 @@
-Get potential generation working.
-Make sure that your 2d grid is consistent.
-Do a few tests!
+Sparse linear algebrae instead??? (101)^4 takes roughly 3 hours, which isn't bad, but isn't great either
+There should be a way to iterate over only what I need to fill in...
+Need to test that the 2d grid is implemented properly (right values are going to diagonals as called). 2d HO appears to work ok
+Need to play with potential generator to change cutoffs, number of points to reflect m (dq)**2 = m (dq)**2 for all coordinates
+play with Hydroxymethyl
 work on 3d?
