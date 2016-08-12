@@ -73,6 +73,7 @@ def readpotential(inp,r_units='bohr'):
     import re
     numeric_const_pattern = r"""[-+]?(?: (?: \d* \. \d+ ) | (?: \d+ \.? ) ) (?: [Ee] [+-]? \d+ ) ?"""
     rx=re.compile(numeric_const_pattern,re.VERBOSE)
+    emin=0
     for x in lines:
         if x[0] not in commentoutchars:
             if 'mass' in x.lower() and mass==0:
@@ -86,6 +87,16 @@ def readpotential(inp,r_units='bohr'):
             elif 'bohr' in x.lower():
                 print('reading potential as bohr, this should only be set once.')
                 r_unitconversion=1.0
+            elif 'emin' in x.lower():
+                emin=rx.findall(x)
+                if len(emin)>1:
+                    for x in emin:
+                        x=float(x)
+                    print('found multiple energy minimum {0} using {1} as minimum'.format(emin,min(emin)))
+                    emin=min(emin)
+                else:
+                    emin=float(emin[0])
+                print('shifting energy minimum to {} a.u.'.format(emin))
             elif types[0] in x.lower() or types[1] in x.lower() or types[2] in x.lower():
                 typelist=x.lower().replace(',',' ').split()
                 for y in typelist:
@@ -122,6 +133,8 @@ def readpotential(inp,r_units='bohr'):
         print('{0} masses given and {1} coordinate types give'.format(len(mass),len(coordtypes)))
         from sys import exit
         exit()
+    for x in range(len(energy)):
+        energy[x]=float(energy[x])-emin
     return (rnew,energy, mass, coordtypes)
 
 
@@ -281,17 +294,18 @@ def main():
     Energies_raw=np.array(potential[1],dtype=eval(numpy_precision))
     mass=potential[2]
     coordtypes=potential[3]
+    """ Radial terminates with PiB walls; angular_2pi repeats; angular_pi terminates with PiB walls at 0 and pi"""
     coordtypedict={'radial': 'r', 'angular_2pi': 'phi', 'angular_pi': 'theta'}
     for x in range(len(coordtypes)):
         coordtypes[x]=coordtypedict[coordtypes[x]]
 #    xmin,emin=returnsplinemin(r_raw,Energies_raw)
 #    r=r_raw-np.min(xmin)
 #    Energies=Energies_raw-np.min(emin)
-#    Ener_spline=cubicspline(r,Energies)
-#    xnew = np.linspace(min(r),max(r), num=num_points)
-#    vfit=returnsplinevalue(Ener_spline,xnew)
     r=r_raw
     Energies=Energies_raw
+#    Ener_spline=cubicspline(r[0],Energies)
+#    xnew = np.linspace(min(r[0]),max(r[0]), num=num_points)
+#    vfit=returnsplinevalue(Ener_spline,xnew)
     pts=[]
     for x in range(len(r)):
         pts.append(len(np.unique(r[x])))
@@ -299,6 +313,7 @@ def main():
 #    Ham=H_array(pts=len(r),mass=mass,V=Energies,qmax=max(r),qmin=min(r),coordtype=['r'])
     eigenval, eigenvec=np.linalg.eig(Ham)
     Esort=np.sort(eigenval*hartreetocm)
+    Esort=Esort
 # plotting stuff 
     Etoprint=int(len(Esort)/2)
     if plotit:
