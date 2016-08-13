@@ -38,8 +38,8 @@ class q:
         self.grid=linspace(self.minval,self.maxval,self.numpoints)
 
     def equivalencemwcoords(self,q_other):
-        from scipy.optimize import minimize
-        from numpy import subtract
+        from scipy.optimize import minimize, basinhopping
+        from numpy import subtract, multiply, int
         c=[]
         m1=self.mass
         m2=q_other.mass
@@ -51,11 +51,16 @@ class q:
             c.append(q_other.maxval)
             c.append(q_other.minval)
             c.append(q_other.numpoints)
-            bnds=((self.maxval*0.5,self.maxval*1.5),(self.minval*0.5,self.minval*1.5),(int(self.numpoints*0.1),self.numpoints*10),\
-                    (q_other.maxval*0.5,q_other.maxval*1.5),(q_other.minval*0.5,q_other.minval*1.5),(int(q_other.numpoints*0.1),q_other.numpoints*10))
-            result = minimize(frr, c, args=(m1,m2),bounds=bnds)
-            if result.success:
-                self.maxval, self.minval, self.numpoints, q_other.maxval, q_other.minval, q_other.numpoints = result.x
+#            cons={'type':'eq','fun':con_pos}
+            minbnds=[multiply(self.maxval,0.5),multiply(self.minval,0.5),int(multiply(self.numpoints,0.1)),\
+                    multiply(q_other.maxval,0.5),multiply(q_other.minval,0.5),int(multiply(q_other.numpoints,0.1))]
+            maxbnds=[multiply(self.maxval,1.5),multiply(self.minval,1.5),multiply(self.numpoints,10),\
+                    multiply(q_other.maxval,1.5),multiply(q_other.minval,1.5),multiply(q_other.numpoints,10)]
+            mybounds=MyBounds(xmin=minbnds,xmax=maxbnds)
+            result = basinhopping(frr, c, minimizer_kwargs={'args':(m1,m2),'method':'L-BFGS-B'},accept_test=mybounds)
+            #result = minimize(frr, c, args=(m1,m2),bounds=bnds)
+#            if result.success:
+            self.maxval, self.minval, self.numpoints, q_other.maxval, q_other.minval, q_other.numpoints = result.x
         elif self.coordtype==0:
             c.append(self.maxval)
             c.append(self.minval)
@@ -87,22 +92,42 @@ class q:
             result = minimize(fangang, c, args=(m1,m2,q1range,q2range),bounds=bnds)
             if result.success:
                  self.numpoints, q_other.numpoints = result.x
-        if result.success:
-            print(result)
+        print(result)
+        if True:
+#        if result.success=='True':
+            self.numpoints=int(self.numpoints)
+            q_other.numpoints=int(q_other.numpoints)
             self.setgrid()
             q_other.setgrid()
         else:
             print ('could not find a grid with equal mass weighting')
+
+class MyBounds(object):
+    def __init__(self, xmax=[1.1,1.1], xmin=[-1.1,-1.1] ):
+        from numpy import array
+        self.xmax = array(xmax)
+        self.xmin = array(xmin)
+    def __call__(self, **kwargs):
+        from numpy import all, subtract, abs
+        x = kwargs["x_new"]
+        tmax = bool(all(x <= self.xmax))
+        tmin = bool(all(x >= self.xmin))
+        if abs(subtract(x[2],int(x[2])))>1e-07:
+            return False
+        if abs(subtract(x[5],int(x[5])))>1e-07:
+            return False
+        return tmax and tmin
 
 def con_pos(t):
     from numpy import subtract, abs
     return subtract(t,abs(t))
 
 def frr(c,m1,m2):
-    from numpy import subtract, power, round, divide, multiply
+    from numpy import subtract, power, round, divide, multiply#, add, int, abs
     mw1=multiply(power(divide(subtract(c[0],c[1]),subtract(round(c[2]),1)),2),m1)
     mw2=multiply(power(divide(subtract(c[3],c[4]),subtract(round(c[5]),1)),2),m2)
     return abs(subtract(mw2,mw1))
+#    return add(abs(subtract(mw2,mw1)),multiply(0.01,add(abs(subtract(int(c[2]),c[2])),abs(subtract(int(c[5]),c[5])))))
 
 def frang(c,m1,m2,q2range):
     from numpy import subtract, power, round, divide, multiply
