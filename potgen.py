@@ -39,50 +39,41 @@ class q:
 
     def equivalencemwcoords(self,q_other):
         from scipy.optimize import minimize, basinhopping
-        from numpy import subtract, multiply, int
+        from numpy import subtract, multiply, int, pi
         c=[]
         m1=self.mass
         m2=q_other.mass
         if self.coordtype==0 and q_other.coordtype==0:
             """ modify grid of two radial coordinates to make mass weighting equal"""
-            c.append(self.maxval)
-            c.append(self.minval)
-            c.append(self.numpoints)
-            c.append(q_other.maxval)
-            c.append(q_other.minval)
-            c.append(q_other.numpoints)
-#            cons={'type':'eq','fun':con_pos}
+            c=[self.maxval, self.minval, self.numpoints, q_other.maxval, q_other.minval, q_other.numpoints]
             minbnds=[multiply(self.maxval,0.5),multiply(self.minval,0.5),int(multiply(self.numpoints,0.1)),\
                     multiply(q_other.maxval,0.5),multiply(q_other.minval,0.5),int(multiply(q_other.numpoints,0.1))]
             maxbnds=[multiply(self.maxval,1.5),multiply(self.minval,1.5),multiply(self.numpoints,10),\
                     multiply(q_other.maxval,1.5),multiply(q_other.minval,1.5),multiply(q_other.numpoints,10)]
-            mybounds=MyBounds(xmin=minbnds,xmax=maxbnds)
+            mybounds=frrBounds(xmin=minbnds,xmax=maxbnds)
             result = basinhopping(frr, c, minimizer_kwargs={'args':(m1,m2),'method':'L-BFGS-B'},accept_test=mybounds)
-            #result = minimize(frr, c, args=(m1,m2),bounds=bnds)
-#            if result.success:
             self.maxval, self.minval, self.numpoints, q_other.maxval, q_other.minval, q_other.numpoints = result.x
         elif self.coordtype==0:
-            c.append(self.maxval)
-            c.append(self.minval)
-            c.append(self.numpoints)
-            c.append(q_other.numpoints)
-            bnds=((self.maxval*0.5,self.maxval*1.5),(self.minval*0.5,self.minval*1.5),(int(self.numpoints*0.1),self.numpoints*10),\
-                    (int(q_other.numpoints*0.1),q_other.numpoints*10))
+            c=[self.maxval, self.minval, self.numpoints, q_other.numpoints]
+            minbnds=[multiply(self.maxval,0.5),multiply(self.minval,0.5),int(multiply(self.numpoints,0.1)),\
+                    int(multiply(q_other.numpoints,0.1))]
+            maxbnds=[multiply(self.maxval,1.5),multiply(self.minval,1.5),multiply(self.numpoints,10),\
+                    multiply(q_other.numpoints,10)]
+            mybounds=frangBounds(xmin=minbnds,xmax=maxbnds)
             q2range=subtract(q_other.maxval,q_other.minval)
-            result = minimize(frang, c, args=(m1,m2,q2range),bounds=bnds)
-            if result.success:
-                self.maxval, self.minval, self.numpoints, q_other.numpoints = result.x
+            result = basinhopping(frang, c, minimizer_kwargs={'args':(m1,m2,q2range),'method':'Nelder-Mead'},accept_test=mybounds)
+#            result = basinhopping(frang, c, minimizer_kwargs={'args':(m1,m2,q2range),'method':'L-BFGS-B'},accept_test=mybounds)
+            self.maxval, self.minval, self.numpoints, q_other.numpoints = result.x
         elif q_other.coordtype==0:
-            c.append(q_other.maxval)
-            c.append(q_other.minval)
-            c.append(q_other.numpoints)
-            c.append(self.numpoints)
-            bnds=((q_other.maxval*0.5,q_other.maxval*1.5),(q_other.minval*0.5,q_other.minval*1.5),(int(q_other.numpoints*0.1),q_other.numpoints*10),\
-                    (int(self.numpoints*0.1),self.numpoints*10))
+            c=[q_other.maxval ,q_other.minval, q_other.numpoints, self.numpoints]
+            minbnds=[multiply(q_other.maxval,0.5),multiply(q_other.minval,0.5),int(multiply(q_other.numpoints,0.1)),\
+                    int(multiply(self.numpoints,0.1))]
+            maxbnds=[multiply(q_other.maxval,1.5),multiply(q_other.minval,1.5),multiply(q_other.numpoints,10),\
+                    multiply(self.numpoints,10)]
+            mybounds=frangBounds(xmin=minbnds,xmax=maxbnds)
             q1range=subtract(self.maxval,self.minval)
-            result = minimize(frang, c, args=(m1,m2,q1range),bounds=bnds)
-            if result.success:
-                q_other.maxval, q_other.minval, q_other.numpoints, self.numpoints  = result.x
+            result = basinhopping(frang, c, minimizer_kwargs={'args':(m2,m1,q1range),'method':'L-BFGS-B'},accept_test=mybounds)
+            q_other.maxval, q_other.minval, q_other.numpoints, self.numpoints  = result.x
         else:
             c.append(self.numpoints)
             c.append(q_other.numpoints)
@@ -92,7 +83,7 @@ class q:
             result = minimize(fangang, c, args=(m1,m2,q1range,q2range),bounds=bnds)
             if result.success:
                  self.numpoints, q_other.numpoints = result.x
-        print(result)
+#        print(result)
         if True:
 #        if result.success=='True':
             self.numpoints=int(self.numpoints)
@@ -102,7 +93,7 @@ class q:
         else:
             print ('could not find a grid with equal mass weighting')
 
-class MyBounds(object):
+class frrBounds(object):
     def __init__(self, xmax=[1.1,1.1], xmin=[-1.1,-1.1] ):
         from numpy import array
         self.xmax = array(xmax)
@@ -115,6 +106,23 @@ class MyBounds(object):
         if abs(subtract(x[2],int(x[2])))>1e-07:
             return False
         if abs(subtract(x[5],int(x[5])))>1e-07:
+            return False
+        return tmax and tmin
+
+class frangBounds(object):
+    def __init__(self, xmax=[1.1,1.1], xmin=[-1.1,-1.1] ):
+        from numpy import array
+        self.xmax = array(xmax)
+        self.xmin = array(xmin)
+
+    def __call__(self, **kwargs):
+        from numpy import all, subtract, abs
+        x = kwargs["x_new"]
+        tmax = bool(all(x <= self.xmax))
+        tmin = bool(all(x >= self.xmin))
+        if abs(subtract(x[2],int(x[2])))>1e-07:
+            return False
+        if abs(subtract(x[3],int(x[3])))>1e-07:
             return False
         return tmax and tmin
 
@@ -153,6 +161,7 @@ def massweightequal(dq1,m1,dq2,m2,printerrors=False):
 
 def main():
     fieldlength=18
+    modifiedinputfile='tmp.inp'
     outfile='tmp.pot'
     numcoordinates=int(input('number of coordinates: '))
     coord=[]
@@ -181,7 +190,7 @@ def main():
             gridout.append(str(coord[0].grid[indices[0][x][0]]).ljust(fieldlength) + str(coord[1].grid[indices[1][x][0]]).ljust(fieldlength))
     from os.path import isfile
     if isfile(outfile):
-        if 'y' not in input('outfile exists, overwrite? [y,N]').lower():
+        if 'y' not in input('outfile (tmp.pot) exists, overwrite? [y,N]').lower():
             from sys import exit
             exit()
     txt=open(outfile,'w')
@@ -197,6 +206,20 @@ def main():
         txt.write(str(coordtypedict[coord[x].coordtype]) + ' ')
     for x in range(len(gridout)):
         txt.write('\n'+gridout[x])
+    txt.close()
+    if isfile(modifiedinputfile):
+        if 'y' not in input('input file (tmp.inp) exists, overwrite? [y,N]').lower():
+            from sys import exit
+            exit()
+    txt=open(modifiedinputfile,'w')
+    txt.write(str(numcoordinates)+'\n')
+    for x in range(numcoordinates):
+        txt.write(str(coord[x].coordtype)+'\n')
+        if coord[x].coordtype==0:
+            txt.write(str(coord[x].maxval)+'\n')
+            txt.write(str(coord[x].minval)+'\n')
+        txt.write(str(coord[x].mass)+'\n')
+        txt.write(str(coord[x].numpoints)+'\n')
 
 if __name__=="__main__":
     main()
