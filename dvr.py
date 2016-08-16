@@ -153,22 +153,22 @@ def jacobi(A,b,N=25,x=None):
         x = (b - dot(R,x)) / D
     return x
 
-def cubicspline(x,y):
+def cubic1dspline(x,y):
     """ Performs a cubic spline with no smoothing and returns the spline function"""
     from scipy.interpolate import splrep
     return splrep(x, y, s=0)
 
-def returnsplinevalue(spline,xnew):
+def return1dsplinevalue(spline,xnew):
     """ returns the value(s) of a spline function at a given x(s)"""
     from scipy.interpolate import splev
     return splev(xnew, spline, der=0)
 
-def returnsplinemin(x,y):
+def return1dsplinemin(x,y):
     """Returns the minimum from a spline function"""
     from scipy.interpolate import splrep, splder, sproot
     spline=splrep(x, y, s=0,k=4)
     xmin=sproot(splder(spline) )
-    return (xmin,returnsplinevalue(spline,xmin))
+    return (xmin,return1dsplinevalue(spline,xmin))
 #    return spline.interpolate.derivative().roots()
 
 def H_array_1d(pts=5,coordtype='r',mass=0.5,qmin=1.0,qmax=2.0):
@@ -284,15 +284,12 @@ def H_array(pts=5,coordtype=['r'],mass=[0.5],dq=0.001,qmin=[1.0],qmax=[2.0],V=[]
 
 def spline1dpot(pts,mass,coordtypes,Energies_raw,r_raw):
     import numpy as np
-    xmin,emin=returnsplinemin(r_raw[0],Energies_raw)
+    xmin,emin=return1dsplinemin(r_raw[0],Energies_raw)
     r=r_raw-np.min(xmin)
     Energies=Energies_raw-np.min(emin)
-    Ener_spline=cubicspline(r[0],Energies)
+    Ener_spline=cubic1dspline(r[0],Energies)
     xnew = np.linspace(min(r[0]),max(r[0]), num=num_points)
-    vfit=returnsplinevalue(Ener_spline,xnew)
-    pts=[]
-    for x in range(len(r)):
-        pts.append(len(np.unique(r[x])))
+    vfit=return1dsplinevalue(Ener_spline,xnew)
     Ham=H_array(pts=pts,mass=mass,V=Energies,qmax=np.amax(r,axis=1),qmin=np.amin(r,axis=1),coordtype=coordtypes)
     eigenval, eigenvec=np.linalg.eig(Ham)
     Esort=np.sort(eigenval*hartreetocm)
@@ -327,6 +324,20 @@ def spline1dpot(pts,mass,coordtypes,Energies_raw,r_raw):
         print('{0:.{1}f}'.format(round(Esort[x],num_print_digits),num_print_digits))
     return eigenval 
 
+def spline2dpot(pts,mass,coordtypes,Energies,r):
+    import numpy as np
+    from scipy.interpolate import griddata
+    grid_x, grid_y = np.mgrid[min(r[0]):max(r[0]):pts[0]*1j, min(r[1]):max(r[1]):pts[1]*1j]
+    vfit= griddata(np.transpose(np.array(r)),Energies,(grid_x,grid_y),method='cubic')
+#    print(np.ndarray.flatten(vfit)-Energies)
+    Ham=H_array(pts=pts,mass=mass,V=Energies,qmax=np.amax(r,axis=1),qmin=np.amin(r,axis=1),coordtype=coordtypes)
+    eigenval, eigenvec=np.linalg.eig(Ham)
+    Esort=np.sort(eigenval*hartreetocm)
+    Etoprint=int(len(Esort)/2)
+    for x in range(Etoprint):
+        print('{0:.{1}f}'.format(round(Esort[x],num_print_digits),num_print_digits))
+    return eigenval 
+
 def main():
     constants(CODATA_year=2010)
     import numpy as np
@@ -348,8 +359,8 @@ def main():
         pts.append(len(np.unique(r[x])))
     if len(coordtypes)==1:
         eigenval= spline1dpot(pts,mass,coordtypes,Energies,r)
-#    elif len(coordtypes)==2:
-#        eigenval= spline2dpot(pts,mass,coordtypes,Energies,r)
+    elif len(coordtypes)==2:
+        eigenval= spline2dpot(pts,mass,coordtypes,Energies,r)
     else:
         Ham=H_array(pts=pts,mass=mass,V=Energies,qmax=np.amax(r,axis=1),qmin=np.amin(r,axis=1),coordtype=coordtypes)
         eigenval, eigenvec=np.linalg.eig(Ham)
