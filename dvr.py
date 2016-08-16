@@ -12,7 +12,7 @@ def constants(CODATA_year=2010):
     numpy_precision="np.float64"
     num_points=101
     num_print_digits=3
-    plotit=False
+    plotit=True
     global planckconstant, light_speed, Rydberg, electron_charge, amu, bohr, e_mass, hartreetocm
     light_speed= 299792458 # m/s
     if CODATA_year==2010:
@@ -282,6 +282,51 @@ def H_array(pts=5,coordtype=['r'],mass=[0.5],dq=0.001,qmin=[1.0],qmax=[2.0],V=[]
             it.iternext()
     return A
 
+def spline1dpot(pts,mass,coordtypes,Energies_raw,r_raw):
+    import numpy as np
+    xmin,emin=returnsplinemin(r_raw[0],Energies_raw)
+    r=r_raw-np.min(xmin)
+    Energies=Energies_raw-np.min(emin)
+    Ener_spline=cubicspline(r[0],Energies)
+    xnew = np.linspace(min(r[0]),max(r[0]), num=num_points)
+    vfit=returnsplinevalue(Ener_spline,xnew)
+    pts=[]
+    for x in range(len(r)):
+        pts.append(len(np.unique(r[x])))
+    Ham=H_array(pts=pts,mass=mass,V=Energies,qmax=np.amax(r,axis=1),qmin=np.amin(r,axis=1),coordtype=coordtypes)
+    eigenval, eigenvec=np.linalg.eig(Ham)
+    Esort=np.sort(eigenval*hartreetocm)
+# plotting stuff 
+    Etoprint=int(len(Esort)/2)
+    if plotit:
+        vfitcm=vfit*hartreetocm
+        import matplotlib.pyplot as plt
+        plt.figure()
+        plt.plot(r[0],Energies*hartreetocm,linestyle='none',marker='o')
+        plt.plot(xnew,vfitcm,linestyle='solid',marker='None')
+        mincut=[]
+        maxcut=[]
+        maxpot=np.max(np.multiply(Energies,hartreetocm))
+        for x in range(Etoprint):
+            for y in range(len(xnew)):
+                if Esort[x]>vfitcm[y]:
+                    mincut.append(xnew[y])
+                    break
+        for x in range(Etoprint):
+            for y in range(len(xnew)-1,1,-1):
+                if Esort[x]>vfitcm[y]:
+                    maxcut.append(xnew[y])
+                    break
+        for x in range(Etoprint):
+            plt.plot((mincut[x],maxcut[x]),(Esort[x],Esort[x]),linestyle='solid')
+#    plt.legend(['Points', 'Cubic Spline'])
+        plt.title('Cubic-spline interpolation')
+        plt.axis()
+        plt.show()
+    for x in range(Etoprint):
+        print('{0:.{1}f}'.format(round(Esort[x],num_print_digits),num_print_digits))
+    return eigenval 
+
 def main():
     constants(CODATA_year=2010)
     import numpy as np
@@ -290,60 +335,28 @@ def main():
         potential=readpotential(sys.argv[1],r_units='angstrom')
     else:
         potential=readpotential(input('Give the file with the potential: '),r_units='angstrom')
-    r_raw=np.array(potential[0],dtype=eval(numpy_precision))
-    Energies_raw=np.array(potential[1],dtype=eval(numpy_precision))
+    r=np.array(potential[0],dtype=eval(numpy_precision))
+    Energies=np.array(potential[1],dtype=eval(numpy_precision))
     mass=potential[2]
     coordtypes=potential[3]
     """ Radial terminates with PiB walls; angular_2pi repeats; angular_pi terminates with PiB walls at 0 and pi"""
     coordtypedict={'radial': 'r', 'angular_2pi': 'phi', 'angular_pi': 'theta'}
     for x in range(len(coordtypes)):
         coordtypes[x]=coordtypedict[coordtypes[x]]
-#    xmin,emin=returnsplinemin(r_raw,Energies_raw)
-#    r=r_raw-np.min(xmin)
-#    Energies=Energies_raw-np.min(emin)
-    r=r_raw
-    Energies=Energies_raw
-#    Ener_spline=cubicspline(r[0],Energies)
-#    xnew = np.linspace(min(r[0]),max(r[0]), num=num_points)
-#    vfit=returnsplinevalue(Ener_spline,xnew)
     pts=[]
     for x in range(len(r)):
         pts.append(len(np.unique(r[x])))
-    Ham=H_array(pts=pts,mass=mass,V=Energies,qmax=np.amax(r,axis=1),qmin=np.amin(r,axis=1),coordtype=coordtypes)
-#    Ham=H_array(pts=len(r),mass=mass,V=Energies,qmax=max(r),qmin=min(r),coordtype=['r'])
-    eigenval, eigenvec=np.linalg.eig(Ham)
-    Esort=np.sort(eigenval*hartreetocm)
-    Esort=Esort
-# plotting stuff 
-    Etoprint=int(len(Esort)/2)
-    if plotit:
-        vfitcm=vfit*hartreetocm
-        import matplotlib.pyplot as plt
-        plt.figure()
-        plt.plot(r,Energies*hartreetocm,linestyle='none',marker='o')
-        plt.plot(xnew,vfitcm,linestyle='solid',marker='None')
-        mincut=[]
-        maxcut=[]
-        maxpot=np.max(np.multiply(Energies,hartreetocm))
-        for x in range(len(Etoprint)):
-            for y in range(len(xnew)):
-                if Esort[x]>vfitcm[y]:
-                    mincut.append(xnew[y])
-                    break
-        for x in range(len(Etoprint)):
-            for y in range(len(xnew)-1,1,-1):
-                if Esort[x]>vfitcm[y]:
-                    maxcut.append(xnew[y])
-                    break
-        for x in range(len(Etoprint)):
-            plt.plot((mincut[x],maxcut[x]),(Esort[x],Esort[x]),linestyle='solid')
-#    plt.legend(['Points', 'Cubic Spline'])
-        plt.title('Cubic-spline interpolation')
-        plt.axis()
-        plt.show()
-    for x in range(Etoprint):
-        print('{0:.{1}f}'.format(round(Esort[x],num_print_digits),num_print_digits))
-
+    if len(coordtypes)==1:
+        eigenval= spline1dpot(pts,mass,coordtypes,Energies,r)
+#    elif len(coordtypes)==2:
+#        eigenval= spline2dpot(pts,mass,coordtypes,Energies,r)
+    else:
+        Ham=H_array(pts=pts,mass=mass,V=Energies,qmax=np.amax(r,axis=1),qmin=np.amin(r,axis=1),coordtype=coordtypes)
+        eigenval, eigenvec=np.linalg.eig(Ham)
+        Esort=np.sort(eigenval*hartreetocm)
+        Etoprint=int(len(Esort)/2)
+        for x in range(Etoprint):
+            print('{0:.{1}f}'.format(round(Esort[x],num_print_digits),num_print_digits))
 
 # jacobian stuff
 #    A = array([[2.0,1.0],[5.0,7.0]])
