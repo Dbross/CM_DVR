@@ -182,7 +182,10 @@ def H_array_1d(pts=5,coordtype='r',mass=0.5,qmin=1.0,qmax=2.0):
         for j in range(pts):
             if coordtype=='r':
                 n1=pts+1
+                """ This is (max-min) of potential, scaled to b-a by adding two more points!"""
                 dq=np.multiply(np.subtract(qmax,qmin),np.divide(np.add(float(pts),1.0),np.subtract(float(pts),1.0)))
+                if i==j==1:
+                    print(dq,pts,n1)
                 prefactor=np.divide(np.power(np.pi,2),np.multiply(np.multiply(4,mass_conv),np.power(dq,2)))
                 if i==j:
                     A[i,i]=np.multiply(prefactor,np.subtract(\
@@ -226,6 +229,8 @@ def H_array(pts=5,coordtype=['r'],mass=[0.5],dq=0.001,qmin=[1.0],qmax=[2.0],V=[]
     The Hamiltonian has been converted to atomic units, e.g.
     H =  - [1/(2 am)] d^2/dx^2 + v(x)
     ncoord must be passed, simplest is 1 for a 1D potential
+    note a and b always occur outside of the potential!!!
+    for 0 to 2 pi only one of the two is included
     dq is the massweighted spacing. All coordinates must use the same
     pts is the number of points per coordinate
     mass given in amu; converted to atomic units here"""
@@ -280,6 +285,8 @@ def H_array(pts=5,coordtype=['r'],mass=[0.5],dq=0.001,qmin=[1.0],qmax=[2.0],V=[]
             elif j==j1:
                 it[0]=D1[i,i1]
             it.iternext()
+    else:
+        raise ValueError("not implemented for %d dimensions" % (ncoord))
     return A
 
 def spline1dpot(pts,mass,coordtypes,Energies_raw,r_raw):
@@ -330,7 +337,7 @@ def spline2dpot(pts,mass,coordtypes,Energies,r):
     grid_x, grid_y = np.mgrid[min(r[0]):max(r[0]):pts[0]*1j, min(r[1]):max(r[1]):pts[1]*1j]
     vfit= griddata(np.transpose(np.array(r)),Energies,(grid_x,grid_y),method='cubic')
 #    print(np.ndarray.flatten(vfit)-Energies)
-    Ham=H_array(pts=pts,mass=mass,V=Energies,qmax=np.amax(r,axis=1),qmin=np.amin(r,axis=1),coordtype=coordtypes)
+    Ham=H_array(pts=pts,mass=mass,V=np.ndarray.flatten(vfit),qmax=np.amax(r,axis=1),qmin=np.amin(r,axis=1),coordtype=coordtypes)
     eigenval, eigenvec=np.linalg.eig(Ham)
     Esort=np.sort(eigenval*hartreetocm)
     Etoprint=int(len(Esort)/2)
