@@ -179,9 +179,9 @@ def H_array_1d(pts=5,coordtype='r',mass=0.5,qmin=1.0,qmax=2.0):
         for j in range(pts):
             if coordtype=='r':
                 n1=pts+1
-                """ This is (max-min) of potential, scaled to b-a by adding two more points!"""
-                dq=np.multiply(np.subtract(qmax,qmin),np.divide(np.add(float(pts),1.0),np.subtract(float(pts),1.0)))
-                prefactor=np.divide(np.power(np.pi,2),np.multiply(np.multiply(4,mass_conv),np.power(dq,2)))
+                """ rlen here is (max-min) of potential, scaled to b-a by adding two more points!"""
+                rlen=np.multiply(np.subtract(qmax,qmin),np.divide(np.add(float(pts),1.0),np.subtract(float(pts),1.0)))
+                prefactor=np.divide(np.power(np.pi,2),np.multiply(np.multiply(4,mass_conv),np.power(rlen,2)))
                 if i==j:
                     A[i,i]=np.multiply(prefactor,np.subtract(\
                             np.divide(np.add(np.multiply(2,np.power(n1,2)),1),3),np.power(np.sin(np.divide(np.multiply(np.add(i,1),np.pi),n1)),-2)))
@@ -218,17 +218,22 @@ def H_array_1d(pts=5,coordtype='r',mass=0.5,qmin=1.0,qmax=2.0):
                 exit('coordinate type not recongized')
     return A
 
-def H_array(pts=5,coordtype=['r'],mass=[0.5],dq=0.001,qmin=[1.0],qmax=[2.0],V=[]):
-    """ Kinetic Energy Array (dimensionality=2): see Eq A6a and A6b of JCP 96, 1982 (1992): note 
+def H_array(pts=5,coordtype=['r'],mass=[0.5],qmin=[1.0],qmax=[2.0],V=[]):
+    """ input 
+    pts=points , coordtype (dict values r, phi, theta), qmin=list(qminimia), qmax=list(qmaxima), V=potential
+    output
+    2d DVR array based on
+    Kinetic Energy Array (dimensionality=2): see Eq A6a and A6b of JCP 96, 1982 (1992): note 
     constants are defined in constants module globally earlier
     The Hamiltonian has been converted to atomic units, e.g.
     H =  - [1/(2 am)] d^2/dx^2 + v(x)
     ncoord must be passed, simplest is 1 for a 1D potential
     note a and b always occur outside of the potential!!!
     for 0 to 2 pi only one of the two is included
-    dq is the massweighted spacing. All coordinates must use the same
+    The massweighted spacing. All coordinates must use the same
     pts is the number of points per coordinate
-    mass given in amu; converted to atomic units here"""
+    mass given in amu; converted to atomic units here
+    For angular coordinates this is instead  a moment of intertia in units of amu * bohr^2 """
     import numpy as np
     np.set_printoptions(suppress=False,threshold=np.nan,linewidth=np.nan)
     ncoord=len(coordtype)
