@@ -102,9 +102,6 @@ def readpotential(inp,r_units='bohr'):
                 for y in typelist:
                     if y in types:
                         coordtypes.append(y)
-                #if len(coordtypes)<len(coords):
-                #    from sys import exit
-                #    exit('More coordinate types than coordinates')
             elif 'angstrom' in x.lower():
                 print('reading potential as angstrom, this should only be set once.')
                 r_unitconversion=(1.0/bohr)
@@ -184,8 +181,6 @@ def H_array_1d(pts=5,coordtype='r',mass=0.5,qmin=1.0,qmax=2.0):
                 n1=pts+1
                 """ This is (max-min) of potential, scaled to b-a by adding two more points!"""
                 dq=np.multiply(np.subtract(qmax,qmin),np.divide(np.add(float(pts),1.0),np.subtract(float(pts),1.0)))
-                if i==j==1:
-                    print(dq,pts,n1)
                 prefactor=np.divide(np.power(np.pi,2),np.multiply(np.multiply(4,mass_conv),np.power(dq,2)))
                 if i==j:
                     A[i,i]=np.multiply(prefactor,np.subtract(\
@@ -202,10 +197,10 @@ def H_array_1d(pts=5,coordtype='r',mass=0.5,qmin=1.0,qmax=2.0):
                     from sys import exit
                     exit('in phi coordinate 2m+1 != n, must use odd number of points')
                 if i==j:
-                    A[np.sum(i,gridstart),np.sum(j,gridstart)]=np.add(np.multiply(prefactor,np.divide(np.multiply(m,np.add(m,1)),3)),V[i])
+                    A[np.sum(i),np.sum(j)]=np.add(np.multiply(prefactor,np.divide(np.multiply(m,np.add(m,1)),3)),V[i])
                 else:
                     cosij=np.cos(np.divide(np.multiply(np.pi,np.subtract(i,j)),n))
-                    A[np.sum(i,gridstart),np.sum(j,gridstart)]=\
+                    A[np.sum(i),np.sum(j)]=\
                             np.multiply(np.multiply(np.power(-1,np.subtract(i,j)),prefactor),np.divide(cosij,np.multiply(2,np.subtract(1,np.power(cosij,2)))))
             elif coordtype[x]=='theta':
                 n1=pts+1
