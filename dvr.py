@@ -190,19 +190,19 @@ def H_array_1d(pts=5,coordtype='r',mass=0.5,qmin=1.0,qmax=2.0):
                             ,np.subtract(np.power(np.sin(np.divide(np.multiply(np.pi,np.subtract(i,j)) , np.multiply(2 ,n1) )),-2) , \
                             np.power(np.sin(np.divide(np.multiply(np.pi,np.add(i,np.add(j,2))) , np.multiply(2 , n1))),-2)))
 # 0 to 2pi in appendix A section 4
-            elif coordtype[x]=='phi':
+            elif coordtype=='phi':
                 prefactor=(1.0)/(2*mass_conv)
                 m=int(np.divide(pts,2))
                 if (2*m+1)!=pts:
                     from sys import exit
                     exit('in phi coordinate 2m+1 != n, must use odd number of points')
                 if i==j:
-                    A[np.sum(i),np.sum(j)]=np.add(np.multiply(prefactor,np.divide(np.multiply(m,np.add(m,1)),3)),V[i])
+                    A[np.sum(i),np.sum(j)]=np.multiply(prefactor,np.divide(np.multiply(m,np.add(m,1)),3))
                 else:
                     cosij=np.cos(np.divide(np.multiply(np.pi,np.subtract(i,j)),n))
                     A[np.sum(i),np.sum(j)]=\
                             np.multiply(np.multiply(np.power(-1,np.subtract(i,j)),prefactor),np.divide(cosij,np.multiply(2,np.subtract(1,np.power(cosij,2)))))
-            elif coordtype[x]=='theta':
+            elif coordtype=='theta':
                 n1=pts+1
                 prefactor=np.divide(1.0,np.multiply(4,mass_conv))
                 if i==j:
@@ -216,7 +216,17 @@ def H_array_1d(pts=5,coordtype='r',mass=0.5,qmin=1.0,qmax=2.0):
             else:
                 from sys import exit
                 exit('coordinate type not recongized')
-    return A
+    if coordtype=='r':
+        mwspace=np.multiply(np.power(np.divide(rlen,n1),2),mass)
+    elif coordtype=='theta':
+        mwspace=np.multiply(np.power(np.divide(np.pi,n1),2),mass)
+    elif coordtype=='phi':
+        mwspace=np.multiply(np.power(np.divide(np.multiply(2,np.pi),pts),2),mass)
+#    if coordtype=='r' or coordtype=='theta':
+#        print('{1} has prefactor of {0:.4e} with b-a={2}'.format(prefactor, coordtype,rlen))
+#    else:
+#        print('{1} has prefactor of {0:.4e}'.format(prefactor/8, coordtype))
+    return (A,mwspace)
 
 def H_array(pts=5,coordtype=['r'],mass=[0.5],qmin=[1.0],qmax=[2.0],V=[]):
     """ input 
@@ -244,16 +254,21 @@ def H_array(pts=5,coordtype=['r'],mass=[0.5],qmin=[1.0],qmax=[2.0],V=[]):
     if ncoord==1:
         qmin=[qmin]
         qmax=[qmax]
-        D1=H_array_1d(pts[0],mass=mass[0],qmin=qmin[0],qmax=qmax[0])
+        D1, mw1=H_array_1d(pts[0],mass=mass[0],qmin=qmin[0],qmax=qmax[0],coordtype=coordtype[0])
         indices=np.array(np.meshgrid(np.arange(pts[0]),np.arange(pts[0]))).T.reshape(-1,2)
     if ncoord==2:
-        D1=H_array_1d(pts[0],mass=mass[0],qmin=qmin[0],qmax=qmax[0])
-        D2=H_array_1d(pts[1],mass=mass[1],qmin=qmin[1],qmax=qmax[1])
+        D1, mw1=H_array_1d(pts[0],mass=mass[0],qmin=qmin[0],qmax=qmax[0],coordtype=coordtype[0])
+        D2, mw2=H_array_1d(pts[1],mass=mass[1],qmin=qmin[1],qmax=qmax[1],coordtype=coordtype[1])
+        if np.abs(np.subtract(mw1,mw2))>1.0E-07:
+            from sys import exit
+            print('mass weighted coordinate spacing unequal as specified, stopping DVR')
+            exit()
         indices=np.array(np.meshgrid(np.arange(pts[0]),np.arange(pts[1]),np.arange(pts[1]),np.arange(pts[0]))).T.reshape(-1,4)
     if ncoord==3:
-        D1=H_array_1d(pts[0],mass=mass[0],qmin=qmin[0],qmax=qmax[0])
-        D2=H_array_1d(pts[1],mass=mass[1],qmin=qmin[1],qmax=qmax[1])
-        D3=H_array_1d(pts[2],mass=mass[2],qmin=qmin[2],qmax=qmax[2])
+        raise ValueError("not implemented for %d dimensions" % (ncoord))
+        D1, mw1=H_array_1d(pts[0],mass=mass[0],qmin=qmin[0],qmax=qmax[0],coordtype=coordtype[0])
+        D2, mw2=H_array_1d(pts[1],mass=mass[1],qmin=qmin[1],qmax=qmax[1],coordtype=coordtype[1])
+        D3, mw3=H_array_1d(pts[2],mass=mass[2],qmin=qmin[2],qmax=qmax[2],coordtype=coordtype[2])
 #        indices=np.array(np.meshgrid(np.arange(ptspercoord),np.arange(ptspercoord),np.arange(ptspercoord),np.arange(ptspercoord)\
 #                ,np.arange(ptspercoord),np.arange(ptspercoord))).T.reshape(-1,6)
 #    from itertools import product
