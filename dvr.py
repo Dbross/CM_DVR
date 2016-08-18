@@ -76,7 +76,9 @@ def readpotential(inp,r_units='bohr'):
     emin=0
     for x in lines:
         if x[0] not in commentoutchars:
-            if 'mass' in x.lower() and mass==0:
+            if '---' in x.lower():
+                break
+            elif 'mass' in x.lower() and mass==0:
                 mass=rx.findall(x)
                 for x in range(len(mass)):
                     mass[x]=float(mass[x])

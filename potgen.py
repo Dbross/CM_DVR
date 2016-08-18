@@ -230,6 +230,11 @@ def main():
         txt.write(str(coordtypedict[coord[x].coordtype]) + ' ')
     for x in range(len(gridout)):
         txt.write('\n'+gridout[x])
+    for x in range(numcoordinates):
+        txt.write('\n')
+        for y in sorted(set(coord[x].grid)): 
+            txt.write(str(y) + ' ')
+        txt.write('\n')
     txt.close()
     if isfile(modifiedinputfile):
         if 'y' not in input('input file (tmp.inp) exists, overwrite? [y,N]').lower():
@@ -243,7 +248,13 @@ def main():
             txt.write(str(coord[x].maxval)+'\n')
             txt.write(str(coord[x].minval)+'\n')
         txt.write(str(coord[x].mass)+'\n')
-        txt.write(str(coord[x].numpoints)+'\n')
+        if coord[x].coordtype==0:
+            txt.write(str(coord[x].numpoints)+'\n')
+        elif coord[x].coordtype==1:
+            txt.write(str(coord[x].numpoints+2)+'\n')
+        elif coord[x].coordtype==2:
+            txt.write(str(coord[x].numpoints+1)+'\n')
 
 if __name__=="__main__":
     main()
+
