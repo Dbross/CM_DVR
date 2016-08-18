@@ -43,110 +43,125 @@ class q:
         c=[]
         m1=self.mass
         m2=q_other.mass
+        trialval=[]
+        triali=[]
+        trialj=[]
+        vals=[]
         if self.coordtype==0 and q_other.coordtype==0:
             """ modify grid of two radial coordinates to make mass weighting equal"""
-            c=[self.maxval, self.minval, self.numpoints, q_other.maxval, q_other.minval, q_other.numpoints]
-            minbnds=[multiply(self.maxval,0.5),multiply(self.minval,0.5),int(multiply(self.numpoints,0.1)),\
-                    multiply(q_other.maxval,0.5),multiply(q_other.minval,0.5),int(multiply(q_other.numpoints,0.1))]
-            maxbnds=[multiply(self.maxval,1.5),multiply(self.minval,1.5),multiply(self.numpoints,10),\
-                    multiply(q_other.maxval,1.5),multiply(q_other.minval,1.5),multiply(q_other.numpoints,10)]
-            mybounds=frrBounds(xmin=minbnds,xmax=maxbnds)
-            result = basinhopping(frr, c, minimizer_kwargs={'args':(m1,m2),'method':'L-BFGS-B'},accept_test=mybounds)
-            self.maxval, self.minval, self.numpoints, q_other.maxval, q_other.minval, q_other.numpoints = result.x
+            c=[self.maxval, self.minval, q_other.maxval, q_other.minval]
+            minbnds=(multiply(self.maxval,0.9),multiply(self.minval,0.9),\
+                    multiply(q_other.maxval,0.9),multiply(q_other.minval,0.9))
+            maxbnds=(multiply(self.maxval,1.1),multiply(self.minval,1.1),\
+                multiply(q_other.maxval,1.1),multiply(q_other.minval,1.1))
+            bnds=list(zip(minbnds,maxbnds))
+            for i in range(int(round(self.numpoints*0.5)),5*self.numpoints, 1):
+                for j in range(int(round(q_other.numpoints*0.5)),5*q_other.numpoints, 1):
+                    result=minimize(frr,c,args=(m1,m2,i,j),bounds=bnds)
+                    if result.fun<1e-07:
+                        trialval.append(result.fun)
+                        triali.append(i)
+                        trialj.append(j)
+                        vals.append(result.x)
         elif self.coordtype==0:
-            c=[self.maxval, self.minval, self.numpoints, q_other.numpoints]
-            minbnds=[multiply(self.maxval,0.5),multiply(self.minval,0.5),int(multiply(self.numpoints,0.1)),\
-                    int(multiply(q_other.numpoints,0.1))]
-            maxbnds=[multiply(self.maxval,1.5),multiply(self.minval,1.5),multiply(self.numpoints,10),\
-                    multiply(q_other.numpoints,10)]
-            mybounds=frangBounds(xmin=minbnds,xmax=maxbnds)
+            """ modify grid of one radial coordinates to make mass weighting equal"""
+            c=[self.maxval, self.minval]
             q2range=subtract(q_other.maxval,q_other.minval)
-            result = basinhopping(frang, c, minimizer_kwargs={'args':(m1,m2,q2range),'method':'Nelder-Mead'},accept_test=mybounds)
-#            result = basinhopping(frang, c, minimizer_kwargs={'args':(m1,m2,q2range),'method':'L-BFGS-B'},accept_test=mybounds)
-            self.maxval, self.minval, self.numpoints, q_other.numpoints = result.x
+            minbnds=(multiply(self.maxval,0.9),multiply(self.minval,0.9))
+            maxbnds=(multiply(self.maxval,1.1),multiply(self.minval,1.1))
+            bnds=list(zip(minbnds,maxbnds))
+            for i in range(int(round(self.numpoints*0.5)),5*self.numpoints, 1):
+                for j in range(int(round(q_other.numpoints*0.5)),5*q_other.numpoints, 1):
+                    q1range=subtract(self.maxval,self.minval)
+                    fun= fangang(m1,m2,q1range,q2range,i,j)
+#                    result=minimize(frang,c,args=(m1,m2,q2range,i,j),bounds=bnds)
+#                    if result.fun<1e-07:
+                    if fun<1e-07:
+                        trialval.append(fun)
+#                        trialval.append(result.fun)
+                        triali.append(i)
+                        trialj.append(j)
+                        vals.append([0,0])
+#                        vals.append(result.x)
         elif q_other.coordtype==0:
-            c=[q_other.maxval ,q_other.minval, q_other.numpoints, self.numpoints]
-            minbnds=[multiply(q_other.maxval,0.5),multiply(q_other.minval,0.5),int(multiply(q_other.numpoints,0.1)),\
-                    int(multiply(self.numpoints,0.1))]
-            maxbnds=[multiply(q_other.maxval,1.5),multiply(q_other.minval,1.5),multiply(q_other.numpoints,10),\
-                    multiply(self.numpoints,10)]
-            mybounds=frangBounds(xmin=minbnds,xmax=maxbnds)
+            """ modify grid of one radial coordinates to make mass weighting equal"""
+            c=[q_other.maxval ,q_other.minval]
+            minbnds=(multiply(q_other.maxval,0.9),multiply(q_other.minval,0.9))
+            maxbnds=(multiply(q_other.maxval,1.1),multiply(q_other.minval,1.1))
             q1range=subtract(self.maxval,self.minval)
-            result = basinhopping(frang, c, minimizer_kwargs={'args':(m2,m1,q1range),'method':'L-BFGS-B'},accept_test=mybounds)
-            q_other.maxval, q_other.minval, q_other.numpoints, self.numpoints  = result.x
+            bnds=list(zip(minbnds,maxbnds))
+            for i in range(int(round(self.numpoints*0.5)),5*self.numpoints, 1):
+                for j in range(int(round(q_other.numpoints*0.5)),5*q_other.numpoints, 1):
+                    """ i and j are reversed to keep things consistent below"""
+                    result=minimize(frang,c,args=(m2,m1,q1range,j,i),bounds=bnds)
+                    if result.fun<1e-07:
+                        trialval.append(result.fun)
+                        triali.append(i)
+                        trialj.append(j)
+                        vals.append(result.x)
         else:
-            c.append(self.numpoints)
-            c.append(q_other.numpoints)
-            bnds=((int(self.numpoints*0.1),self.numpoints*10),(int(q_other.numpoints*0.1),q_other.numpoints*10))
+            """ modify number of points in grid to make mass weighting equal"""
+            q1range=subtract(self.maxval,self.minval)
             q2range=subtract(q_other.maxval,q_other.minval)
-            q1range=subtract(self.maxval,self.minval)
-            result = minimize(fangang, c, args=(m1,m2,q1range,q2range),bounds=bnds)
-            if result.success:
-                 self.numpoints, q_other.numpoints = result.x
-#        print(result)
-        if True:
-#        if result.success=='True':
-            self.numpoints=int(self.numpoints)
-            q_other.numpoints=int(q_other.numpoints)
-            self.setgrid()
-            q_other.setgrid()
+            for i in range(int(round(self.numpoints*0.3)),10*self.numpoints, 1):
+                for j in range(int(round(q_other.numpoints*0.3)),10*q_other.numpoints, 1):
+                    val1= fangang(m1,m2,q1range,q2range,i,j)
+                    if val1<1e-07:
+                        trialval.append(val1)
+                        triali.append(i)
+                        trialj.append(j)
+        if len(triali)>1:
+            if self.coordtype==0 and q_other.coordtype==0:
+                print('{0:5} {1:4} {2:4} {3:15} {4:15}'\
+                        .format('Number','pts1','pts2','q1','q2'))
+                for i in range(len(triali)):
+                    print('{0:5} {1:5} {2:5} {4:.3f}-{3:.3f} {6:.3f}-{5:.3f}'\
+                            .format(i,triali[i],trialj[i],vals[i][0],vals[i][1],vals[i][2],vals[i][3]))
+                itouse=int(input('choose the number corresponding to the desired number of points: '))
+                self.maxval, self.minval, q_other.maxval, q_other.minval  = vals[itouse]
+            elif self.coordtype==0:
+                print('{0:5} {1:4} {2:4} {3:15} '.format('Number','pts1','pts2','q1'))
+                for i in range(len(triali)):
+                    print('{0:5} {1:5} {2:5} {4:.3f}-{3:.3f}'.format(i,triali[i],trialj[i],vals[i][0],vals[i][1]))
+                itouse=int(input('choose the number corresponding to the desired number of points: '))
+                self.maxval, self.minval  = vals[itouse]
+            elif q_other.coordtype==0:
+                print('{0:5} {1:4} {2:4} {3:15} '.format('Number','pts1','pts2','q2'))
+                for i in range(len(triali)):
+                    print('{0:5} {1:5} {2:5} {4:.3f}-{3:.3f}'.format(i,triali[i],trialj[i],vals[i][0],vals[i][1]))
+                itouse=int(input('choose the number corresponding to the desired number of points: '))
+                q_other.maxval, q_other.minval = vals[itouse]
+            else:
+                print('{0:5} {1:4} {2:4}'.format('Number','pts1','pts2'))
+                for i in range(len(triali)):
+                    print('{0:5} {1:5} {2:5}'.format(i,triali[i],trialj[i]))
+                itouse=int(input('choose the number corresponding to the desired number of points: '))
+            self.numpoints=triali[itouse]
+            q_other.numpoints=trialj[itouse]
         else:
-            print ('could not find a grid with equal mass weighting')
+            from sys import exit
+            print('no reasonable solutions found for this potential')
+            exit()
+        self.setgrid()
+        q_other.setgrid()
 
-class frrBounds(object):
-    def __init__(self, xmax=[1.1,1.1], xmin=[-1.1,-1.1] ):
-        from numpy import array
-        self.xmax = array(xmax)
-        self.xmin = array(xmin)
-    def __call__(self, **kwargs):
-        from numpy import all, subtract, abs
-        x = kwargs["x_new"]
-        tmax = bool(all(x <= self.xmax))
-        tmin = bool(all(x >= self.xmin))
-        if abs(subtract(x[2],int(x[2])))>1e-07:
-            return False
-        if abs(subtract(x[5],int(x[5])))>1e-07:
-            return False
-        return tmax and tmin
-
-class frangBounds(object):
-    def __init__(self, xmax=[1.1,1.1], xmin=[-1.1,-1.1] ):
-        from numpy import array
-        self.xmax = array(xmax)
-        self.xmin = array(xmin)
-
-    def __call__(self, **kwargs):
-        from numpy import all, subtract, abs
-        x = kwargs["x_new"]
-        tmax = bool(all(x <= self.xmax))
-        tmin = bool(all(x >= self.xmin))
-        if abs(subtract(x[2],int(x[2])))>1e-07:
-            return False
-        if abs(subtract(x[3],int(x[3])))>1e-07:
-            return False
-        return tmax and tmin
-
-def con_pos(t):
-    from numpy import subtract, abs
-    return subtract(t,abs(t))
-
-def frr(c,m1,m2):
+def frr(c,m1,m2,pts1,pts2):
     from numpy import subtract, power, round, divide, multiply#, add, int, abs
-    mw1=multiply(power(divide(subtract(c[0],c[1]),subtract(round(c[2]),1)),2),m1)
-    mw2=multiply(power(divide(subtract(c[3],c[4]),subtract(round(c[5]),1)),2),m2)
+    mw1=multiply(power(divide(subtract(c[0],c[1]),subtract((pts1),1)),2),m1)
+    mw2=multiply(power(divide(subtract(c[2],c[3]),subtract((pts2),1)),2),m2)
     return abs(subtract(mw2,mw1))
 #    return add(abs(subtract(mw2,mw1)),multiply(0.01,add(abs(subtract(int(c[2]),c[2])),abs(subtract(int(c[5]),c[5])))))
 
-def frang(c,m1,m2,q2range):
+def frang(c,m1,m2,q2range,pts1,pts2):
     from numpy import subtract, power, round, divide, multiply
-    mw1=multiply(power(divide(subtract(c[0],c[1]),subtract(round(c[2]),1)),2),m1)
-    mw2=multiply(power(divide(q2range,subtract(round(c[3]),1)),2),m2)
+    mw1=multiply(power(divide(subtract(c[0],c[1]),subtract((pts1),1)),2),m1)
+    mw2=multiply(power(divide(q2range,subtract((pts2),1)),2),m2)
     return abs(subtract(mw2,mw1))
 
-def fangang(c,m1,m2,q1range,q2range):
+def fangang(m1,m2,q1range,q2range,pts1,pts2):
     from numpy import subtract, power, round, divide, multiply
-    mw1=multiply(power(divide(q1range,subtract(round(c[0]),1)),2),m1)
-    mw2=multiply(power(divide(q2range,subtract(round(c[1]),1)),2),m2)
+    mw1=multiply(power(divide(q1range,subtract(pts1,1)),2),m1)
+    mw2=multiply(power(divide(q2range,subtract(pts2,1)),2),m2)
     return abs(subtract(mw2,mw1))
 
 def massweightequal(dq1,m1,dq2,m2,printerrors=False):
