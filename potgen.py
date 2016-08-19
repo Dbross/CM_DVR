@@ -230,10 +230,21 @@ def main():
         txt.write(str(coordtypedict[coord[x].coordtype]) + ' ')
     for x in range(len(gridout)):
         txt.write('\n'+gridout[x])
+    txt.write('\n')
+    txt.write('---\n')
     for x in range(numcoordinates):
-        txt.write('\n')
-        for y in sorted(set(coord[x].grid)): 
-            txt.write(str(y) + ' ')
+        coordset=sorted(set(coord[x].grid))
+        outstr='q'+str(x)+'(1:phh)=['
+        for y in range(len(coordset)): 
+            if len(outstr)<930 and y!=(len(coordset)-1):
+                outstr=outstr+str(coordset[y])+', '
+            elif len(outstr)>930:
+                txt.write(outstr[:-2].replace('phh',str(y))+']\n')
+                outstr='q'+str(numcoordinates)+'('+str(y+1)+':phh)=['
+                outstr=outstr+str(coordset[y])+', '
+            elif y==(len(coordset)-1):
+                outstr=outstr+str(coordset[y])
+                txt.write(outstr.replace('phh',str(y))+']\n')
         txt.write('\n')
     txt.close()
     if isfile(modifiedinputfile):
