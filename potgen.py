@@ -3,8 +3,24 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 from builtins import (bytes, str, open, super, range, zip, round, input, int, pow, object)
 class q:
     r_unit=-1
+    def __init__(self,maxval=0,minval=0,coordtype=0,mass=0,numpoints=0):
+        from numpy import multiply, divide, pi
+        self.maxval=maxval
+        self.minval=minval
+        self.coordtype=coordtype
+        self.numpoints=numpoints
+        self.mass=mass
+        if self.coordtype==1:
+            self.numpoints=self.numpoints+2
+            self.maxval=pi
+            self.minval=0.0
+        if self.coordtype==2:
+            self.numpoints=self.numpoints+1
+            self.maxval=multiply(2,pi)
+            self.minval=0.0
+        self.setgrid()
 
-    def __init__(self):
+    def interactive_start(self):
         r_unit=0
 #        try:
 #            r_unit
@@ -51,27 +67,35 @@ class q:
             self.grid=delete(self.grid,len(self.grid)-1)
             self.numpoints=self.numpoints-1
 
-    def equivalencemwcoords(self,q_other,forcegrid=True):
+    def equivalencemwcoords(self,q_other,forcegrid=False,innerbound=True,autoselect=False):
         from scipy.optimize import minimize, basinhopping
-        from numpy import subtract, multiply, int, pi, add
+        from numpy import subtract, multiply, int, pi, add, abs, array, argmin, less
         m1=self.mass
         m2=q_other.mass
         trialval=[]
         triali=[]
         trialj=[]
         vals=[]
+#        print(self.maxval,self.minval,q_other.maxval,q_other.minval,self.numpoints,q_other.numpoints)
         if self.coordtype==0 and q_other.coordtype==0 and not forcegrid:
             """ modify grid of two radial coordinates to make mass weighting equal"""
             c=[self.maxval, self.minval, q_other.maxval, q_other.minval]
-            minbnds=(multiply(self.maxval,0.9),multiply(self.minval,0.9),\
-                    multiply(q_other.maxval,0.9),multiply(q_other.minval,0.9))
-            maxbnds=(multiply(self.maxval,1.1),multiply(self.minval,1.1),\
-                multiply(q_other.maxval,1.1),multiply(q_other.minval,1.1))
+            if not innerbound:
+                minbnds=(multiply(self.maxval,0.9),multiply(self.minval,1.000000001),\
+                        multiply(q_other.maxval,0.9),multiply(q_other.minval,1.000000001))
+                maxbnds=(multiply(self.maxval,0.9999999999),multiply(self.minval,1.1),\
+                        multiply(q_other.maxval,0.9999999999),multiply(q_other.minval,1.1))
+            else:
+                minbnds=(multiply(self.maxval,0.9),multiply(self.minval,0.9),\
+                        multiply(q_other.maxval,0.9),multiply(q_other.minval,0.9))
+                maxbnds=(multiply(self.maxval,1.1),multiply(self.minval,1.1),\
+                        multiply(q_other.maxval,1.1),multiply(q_other.minval,1.1))
             bnds=list(zip(minbnds,maxbnds))
             for i in range(int(round(self.numpoints*0.5)),5*self.numpoints, 1):
                 for j in range(int(round(q_other.numpoints*0.5)),5*q_other.numpoints, 1):
                     result=minimize(frr,c,args=(m1,m2,i,j),bounds=bnds)
-                    if result.fun<1e-07:
+                    result.fun=frr(result.x,m1,m2,i,j)
+                    if less(result.fun,1e-8):
                         trialval.append(result.fun)
                         triali.append(i)
                         trialj.append(j)
@@ -81,12 +105,17 @@ class q:
             c=[self.maxval, self.minval]
             q2range=subtract(q_other.maxval,q_other.minval)
             q1range=subtract(self.maxval,self.minval)
-            minbnds=(multiply(self.maxval,0.9),multiply(self.minval,0.9))
-            maxbnds=(multiply(self.maxval,1.1),multiply(self.minval,1.1))
+            if innerbound:
+                minbnds=(multiply(self.maxval,0.9),multiply(self.minval,1.000000001))
+                maxbnds=(multiply(self.maxval,0.9999999999),multiply(self.minval,1.1))
+            else:
+                minbnds=(multiply(self.maxval,0.9),multiply(self.minval,0.9))
+                maxbnds=(multiply(self.maxval,1.1),multiply(self.minval,1.1))
             bnds=list(zip(minbnds,maxbnds))
             for i in range(int(round(self.numpoints*0.5)),5*self.numpoints, 1):
                 for j in range(int(round(q_other.numpoints*0.5)),5*q_other.numpoints, 1):
                     result=minimize(frang,c,args=(m1,m2,q2range,i,j),bounds=bnds)
+                    result.fun=frang(result.x,m1,m2,q2range,i,j)
                     if result.fun<1e-07:
                         trialval.append(result.fun)
                         triali.append(i)
@@ -95,15 +124,20 @@ class q:
         elif q_other.coordtype==0 and not forcegrid:
             """ modify grid of one radial coordinates to make mass weighting equal"""
             c=[q_other.maxval ,q_other.minval]
-            minbnds=(multiply(q_other.maxval,0.9),multiply(q_other.minval,0.9))
-            maxbnds=(multiply(q_other.maxval,1.1),multiply(q_other.minval,1.1))
+            if innerbound:
+                minbnds=(multiply(q_other.maxval,0.9),multiply(q_other.minval,1.000000001))
+                maxbnds=(multiply(q_other.maxval,0.9999999999),multiply(q_other.minval,1.1))
+            else:
+                minbnds=(multiply(q_other.maxval,0.9),multiply(q_other.minval,0.9))
+                maxbnds=(multiply(q_other.maxval,1.1),multiply(q_other.minval,1.1))
             q1range=subtract(self.maxval,self.minval)
             bnds=list(zip(minbnds,maxbnds))
             for i in range(int(round(self.numpoints*0.5)),5*self.numpoints, 1):
                 for j in range(int(round(q_other.numpoints*0.5)),5*q_other.numpoints, 1):
                     """ i and j are reversed to keep things consistent below"""
                     result=minimize(frang,c,args=(m2,m1,q1range,j,i),bounds=bnds)
-                    if result.fun<1e-07:
+                    result.fun=frang(result.x,m2,m1,q1range,j,i)
+                    if less(result.fun,1e-07):
                         trialval.append(result.fun)
                         triali.append(i)
                         trialj.append(j)
@@ -119,32 +153,48 @@ class q:
                         trialval.append(val1)
                         triali.append(i)
                         trialj.append(j)
-        if len(triali)>1:
-            if self.coordtype==0 and q_other.coordtype==0 and not forcegrid:
-                print('{0:5} {1:4} {2:4} {3:15} {4:15}'\
-                        .format('Number','pts1','pts2','q1','q2'))
-                for i in range(len(triali)):
-                    print('{0:5} {1:5} {2:5} {4:.3f}-{3:.3f} {6:.3f}-{5:.3f}'\
-                            .format(i,triali[i],trialj[i],vals[i][0],vals[i][1],vals[i][2],vals[i][3]))
-                itouse=int(input('choose the number corresponding to the desired number of points: '))
-                self.maxval, self.minval, q_other.maxval, q_other.minval  = vals[itouse]
-            elif self.coordtype==0 and not forcegrid:
-                print('{0:5} {1:4} {2:4} {3:15} '.format('Number','pts1','pts2','q1'))
-                for i in range(len(triali)):
-                    print('{0:5} {1:5} {2:5} {4:.3f}-{3:.3f}'.format(i,triali[i],trialj[i],vals[i][0],vals[i][1]))
-                itouse=int(input('choose the number corresponding to the desired number of points: '))
-                self.maxval, self.minval  = vals[itouse]
-            elif q_other.coordtype==0 and not forcegrid:
-                print('{0:5} {1:4} {2:4} {3:15} '.format('Number','pts1','pts2','q2'))
-                for i in range(len(triali)):
-                    print('{0:5} {1:5} {2:5} {4:.3f}-{3:.3f}'.format(i,triali[i],trialj[i],vals[i][0],vals[i][1]))
-                itouse=int(input('choose the number corresponding to the desired number of points: '))
-                q_other.maxval, q_other.minval = vals[itouse]
+#        print('{0} potential solutions found'.format(len(triali)))
+        if len(triali)==1:
+            autoselect=True
+        if len(triali)>=1:
+            if autoselect:
+                diffofgrid=add(abs(subtract(array(triali),self.numpoints)),abs(subtract(array(trialj),q_other.numpoints)))
+                itouse=argmin(diffofgrid)
+#                print('{0} selected as point'.format(itouse))
+                if self.coordtype==0 and q_other.coordtype==0 and not forcegrid:
+                    self.maxval, self.minval, q_other.maxval, q_other.minval  = vals[itouse]
+                elif self.coordtype==0 and not forcegrid:
+                    self.maxval, self.minval  = vals[itouse]
+                elif q_other.coordtype==0 and not forcegrid:
+                    q_other.maxval, q_other.minval = vals[itouse]
+                self.numpoints=triali[itouse]
+                q_other.numpoints=trialj[itouse]
             else:
-                print('{0:5} {1:4} {2:4}'.format('Number','pts1','pts2'))
-                for i in range(len(triali)):
-                    print('{0:5} {1:5} {2:5}'.format(i,triali[i],trialj[i]))
-                itouse=int(input('choose the number corresponding to the desired number of points: '))
+                if self.coordtype==0 and q_other.coordtype==0 and not forcegrid:
+                    print('{0:5} {1:4} {2:4} {3:15} {4:15}'\
+                            .format('Number','pts1','pts2','q1','q2'))
+                    for i in range(len(triali)):
+                        print('{0:5} {1:5} {2:5} {4:.3f}-{3:.3f} {6:.3f}-{5:.3f}'\
+                                .format(i,triali[i],trialj[i],vals[i][0],vals[i][1],vals[i][2],vals[i][3]))
+                    itouse=int(input('choose the number corresponding to the desired number of points: '))
+                    self.maxval, self.minval, q_other.maxval, q_other.minval  = vals[itouse]
+                elif self.coordtype==0 and not forcegrid:
+                    print('{0:5} {1:4} {2:4} {3:15} '.format('Number','pts1','pts2','q1'))
+                    for i in range(len(triali)):
+                        print('{0:5} {1:5} {2:5} {4:.8f}-{3:.8f}'.format(i,triali[i],trialj[i],vals[i][0],vals[i][1]))
+                    itouse=int(input('choose the number corresponding to the desired number of points: '))
+                    self.maxval, self.minval  = vals[itouse]
+                elif q_other.coordtype==0 and not forcegrid:
+                    print('{0:5} {1:4} {2:4} {3:15} '.format('Number','pts1','pts2','q2'))
+                    for i in range(len(triali)):
+                        print('{0:5} {1:5} {2:5} {4:.3f}-{3:.3f}'.format(i,triali[i],trialj[i],vals[i][0],vals[i][1]))
+                    itouse=int(input('choose the number corresponding to the desired number of points: '))
+                    q_other.maxval, q_other.minval = vals[itouse]
+                else:
+                    print('{0:5} {1:4} {2:4}'.format('Number','pts1','pts2'))
+                    for i in range(len(triali)):
+                        print('{0:5} {1:5} {2:5}'.format(i,triali[i],trialj[i]))
+                    itouse=int(input('choose the number corresponding to the desired number of points: '))
             self.numpoints=triali[itouse]
             q_other.numpoints=trialj[itouse]
         else:
@@ -153,12 +203,14 @@ class q:
             exit()
         self.setgrid()
         q_other.setgrid()
+#        print(self.maxval,self.minval,q_other.maxval,q_other.minval,self.numpoints,q_other.numpoints)
 
 def frr(c,m1,m2,pts1,pts2):
     from numpy import subtract, power, round, divide, multiply#, add, int, abs
     mw1=multiply(power(divide(subtract(c[0],c[1]),subtract((pts1),1)),2),m1)
     mw2=multiply(power(divide(subtract(c[2],c[3]),subtract((pts2),1)),2),m2)
     return abs(subtract(mw2,mw1))
+    
 #    return add(abs(subtract(mw2,mw1)),multiply(0.01,add(abs(subtract(int(c[2]),c[2])),abs(subtract(int(c[5]),c[5])))))
 
 def frang(c,m1,m2,q2range,pts1,pts2):
@@ -183,6 +235,32 @@ def massweightequal(dq1,m1,dq2,m2,printerrors=False):
         return False
     return True
 
+def silentmweq(inpcoord=[]):
+    """ symmetry equivalence coords
+    Input list of coordinates
+    nested in each list is [maxval,minval,coordtype (0,1,2) for (r,theta,phi), number of points]
+    returns the same list in a list for the coordinates"""
+    from numpy import subtract
+    coord=[]
+    coordtypedict={'r': 0, 'theta': 1, 'phi': 2}
+    for x in range(len(inpcoord)):
+        coord.append(q(maxval=inpcoord[x][0],minval=inpcoord[x][1],coordtype=coordtypedict[inpcoord[x][2]],\
+                numpoints=inpcoord[x][3],mass=inpcoord[x][4]))
+    numcoordinates=len(coord)
+    if numcoordinates==1:
+        return coord
+    elif numcoordinates==2:
+        dq1=subtract(coord[0].grid[1],coord[0].grid[0])
+        dq2=subtract(coord[1].grid[1],coord[1].grid[0])
+        if not massweightequal(dq1,coord[0].mass,dq2,coord[1].mass):
+            coord[0].equivalencemwcoords(coord[1],innerbound=True,autoselect=True,forcegrid=False)
+            dq1=subtract(coord[0].grid[1],coord[0].grid[0])
+            dq2=subtract(coord[1].grid[1],coord[1].grid[0])
+            if not massweightequal(dq1,coord[0].mass,dq2,coord[1].mass,printerrors=True):
+                from sys import exit
+                exit()
+        return coord
+    
 def main():
     fieldlength=18
     modifiedinputfile='tmp.inp'
@@ -190,7 +268,8 @@ def main():
     numcoordinates=int(input('number of coordinates: '))
     coord=[]
     for x in range(int(numcoordinates)):
-        coord.append(q())
+        coord.append(q(maxval=0,minval=0,coordtype=0))
+        coord[x].interactive_start()
     import numpy as np
     coordtypedict={0: 'radial',1: 'angular_pi', 2: 'angular_2pi'}
     gridout=[]
@@ -201,8 +280,9 @@ def main():
     elif numcoordinates==2:
         dq1=np.subtract(coord[0].grid[1],coord[0].grid[0])
         dq2=np.subtract(coord[1].grid[1],coord[1].grid[0])
+        #if True:
         if not massweightequal(dq1,coord[0].mass,dq2,coord[1].mass):
-            coord[0].equivalencemwcoords(coord[1])
+            coord[0].equivalencemwcoords(coord[1],innerbound=True,autoselect=True,forcegrid=False)
             dq1=np.subtract(coord[0].grid[1],coord[0].grid[0])
             dq2=np.subtract(coord[1].grid[1],coord[1].grid[0])
             if not massweightequal(dq1,coord[0].mass,dq2,coord[1].mass,printerrors=True):

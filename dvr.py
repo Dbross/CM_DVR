@@ -12,7 +12,7 @@ def constants(CODATA_year=2010):
     numpy_precision="np.float64"
     num_points=101
     num_print_digits=3
-    plotit=True
+    plotit=False
     global planckconstant, light_speed, Rydberg, electron_charge, amu, bohr, e_mass, hartreetocm
     light_speed= 299792458 # m/s
     if CODATA_year==2010:
@@ -177,6 +177,7 @@ def H_array_1d(pts=5,coordtype='r',mass=0.5,qmin=1.0,qmax=2.0):
 # In atomic units
 # One has been added to i and j inside to make this consistent with paper
     mass_conv=mass*(amu/e_mass)
+    rlen=0
     for i in range(pts):
         for j in range(pts):
             if coordtype=='r':
@@ -218,17 +219,12 @@ def H_array_1d(pts=5,coordtype='r',mass=0.5,qmin=1.0,qmax=2.0):
             else:
                 from sys import exit
                 exit('coordinate type not recongized')
-    if coordtype=='r':
-        mwspace=np.multiply(np.power(np.divide(rlen,n1),2),mass)
-    elif coordtype=='theta':
-        mwspace=np.multiply(np.power(np.divide(np.pi,n1),2),mass)
-    elif coordtype=='phi':
-        mwspace=np.multiply(np.power(np.divide(np.multiply(2,np.pi),pts),2),mass)
+    mws=mwspace(rlen=rlen,mass=mass,coordtype=coordtype,pts=pts)
 #    if coordtype=='r' or coordtype=='theta':
 #        print('{1} has prefactor of {0:.4e} with b-a={2}'.format(prefactor, coordtype,rlen))
 #    else:
 #        print('{1} has prefactor of {0:.4e}'.format(prefactor/8, coordtype))
-    return (A,mwspace)
+    return (A,mws)
 
 def H_array(pts=5,coordtype=['r'],mass=[0.5],qmin=[1.0],qmax=[2.0],V=[]):
     """ input 
@@ -257,7 +253,12 @@ def H_array(pts=5,coordtype=['r'],mass=[0.5],qmin=[1.0],qmax=[2.0],V=[]):
         qmin=[qmin]
         qmax=[qmax]
         D1, mw1=H_array_1d(pts[0],mass=mass[0],qmin=qmin[0],qmax=qmax[0],coordtype=coordtype[0])
-        indices=np.array(np.meshgrid(np.arange(pts[0]),np.arange(pts[0]))).T.reshape(-1,2)
+        if np.less(pts[0],255):
+            inttype='np.uint8'
+        else:
+            inttype='np.uint16'
+        indices=np.array(np.meshgrid(np.arange(pts[0]),np.arange(pts[0])),dtype=eval(inttype)).T.reshape(-1,2)
+#        indices=np.array(np.meshgrid(np.arange(pts[0]),np.arange(pts[0])),dtype=eval(inttype))
     if ncoord==2:
         D1, mw1=H_array_1d(pts[0],mass=mass[0],qmin=qmin[0],qmax=qmax[0],coordtype=coordtype[0])
         D2, mw2=H_array_1d(pts[1],mass=mass[1],qmin=qmin[1],qmax=qmax[1],coordtype=coordtype[1])
@@ -265,7 +266,11 @@ def H_array(pts=5,coordtype=['r'],mass=[0.5],qmin=[1.0],qmax=[2.0],V=[]):
             from sys import exit
             print('mass weighted coordinate spacing unequal as specified, stopping DVR')
             exit()
-        indices=np.array(np.meshgrid(np.arange(pts[0]),np.arange(pts[1]),np.arange(pts[1]),np.arange(pts[0]))).T.reshape(-1,4)
+        if np.less(pts[0],255) and np.less(pts[1],255):
+            inttype='np.uint8'
+        else:
+            inttype='np.uint16'
+        indices=np.array(np.meshgrid(np.arange(pts[0]),np.arange(pts[1]),np.arange(pts[1]),np.arange(pts[0])),dtype=eval(inttype)).T.reshape(-1,4)
     if ncoord==3:
         raise ValueError("not implemented for %d dimensions" % (ncoord))
         D1, mw1=H_array_1d(pts[0],mass=mass[0],qmin=qmin[0],qmax=qmax[0],coordtype=coordtype[0])
@@ -273,15 +278,12 @@ def H_array(pts=5,coordtype=['r'],mass=[0.5],qmin=[1.0],qmax=[2.0],V=[]):
         D3, mw3=H_array_1d(pts[2],mass=mass[2],qmin=qmin[2],qmax=qmax[2],coordtype=coordtype[2])
 #        indices=np.array(np.meshgrid(np.arange(ptspercoord),np.arange(ptspercoord),np.arange(ptspercoord),np.arange(ptspercoord)\
 #                ,np.arange(ptspercoord),np.arange(ptspercoord))).T.reshape(-1,6)
-#    from itertools import product
-#    indices=np.array([item for item in product(range(ptspercoord),repeat=ncoord*2)],dtype=int)
-    indices=np.split(indices,ncoord*2,axis=1) 
+    indices=np.array(np.split(indices,ncoord*2,axis=1))
     it= np.nditer(A, flags=['c_index'], op_flags=['writeonly'])
     k=0
     if ncoord==1:
         while not it.finished:
-            i=indices[0][it.index]
-            i1=indices[1][it.index]
+            i,i1 =indices[0,it.index], indices[1,it.index]
             if i==i1:
                 it[0]=np.add(D1[i,i1],V[i])
             else:
@@ -289,18 +291,14 @@ def H_array(pts=5,coordtype=['r'],mass=[0.5],qmin=[1.0],qmax=[2.0],V=[]):
             it.iternext()
     elif ncoord==2:
         while not it.finished:
-            x=it.index
-            i=indices[0][x]
-            i1=indices[3][x]
-            j=indices[1][x]
-            j1=indices[2][x]
-            if i==i1 and j==j1:
-                it[0]=np.add(np.add(D1[i,i1],D2[j,j1]),V[k])
-                k+=1
-            elif i==i1:
-                it[0]=D2[j,j1]
-            elif j==j1:
-                it[0]=D1[i,i1]
+            if np.equal(indices[0,it.index],indices[3,it.index]):
+                if np.equal(indices[1,it.index],indices[2,it.index] ):
+                    it[0]=np.add(np.add(D1[indices[0,it.index],indices[3,it.index]], D2[indices[1,it.index],indices[2,it.index]]),V[k])
+                    k+=1
+                else:
+                    it[0]=D2[indices[1,it.index],indices[2,it.index]]
+            elif np.equal(indices[1,it.index],indices[2,it.index] ): 
+                it[0]=D1[indices[0,it.index],indices[3,it.index]]
             it.iternext()
     else:
         raise ValueError("not implemented for %d dimensions" % (ncoord))
@@ -344,18 +342,80 @@ def spline1dpot(pts,mass,coordtypes,Energies_raw,r_raw):
         plt.title('Cubic-spline interpolation')
         plt.axis()
         plt.show()
-    for x in range(Etoprint):
-        print('{0:.{1}f}'.format(round(Esort[x],num_print_digits),num_print_digits))
+#    for x in range(Etoprint):
+#        print('{0:.{1}f}'.format(round(Esort[x],num_print_digits),num_print_digits))
     return eigenval 
+
+def mwspace(coordtype='r',rlen=1.0,mass=1.0,pts=2):
+    from numpy import multiply, power, divide, pi , add
+    if coordtype=='r':
+        mwspace=multiply(power(divide(rlen,add(pts,1)),2),mass)
+    elif coordtype=='theta':
+        mwspace=multiply(power(divide(pi,add(pts,1)),2),mass)
+    elif coordtype=='phi':
+        mwspace=multiply(power(divide(multiply(2,pi),pts),2),mass)
+    return mwspace
 
 def spline2dpot(pts,mass,coordtypes,Energies,r):
     import numpy as np
     from scipy.interpolate import griddata
-    grid_x, grid_y = np.mgrid[min(r[0]):max(r[0]):pts[0]*1j, min(r[1]):max(r[1]):pts[1]*1j]
-    vfit= griddata(np.transpose(np.array(r)),Energies,(grid_x,grid_y),method='cubic')
-#    print(np.ndarray.flatten(vfit)-Energies)
-    Ham=H_array(pts=pts,mass=mass,V=np.ndarray.flatten(vfit),qmax=np.amax(r,axis=1),qmin=np.amin(r,axis=1),coordtype=coordtypes)
+#    from scipy.interpolate import RectBivariateSpline
+#    rmin=0.60318081
+#    rmax=2.58221067
+#    pts[0]=182
+#    pts[1]=643
+    from potgen import silentmweq
+#    np.set_printoptions(suppress=False,threshold=np.nan,linewidth=np.nan)
+    qmin0 =np.min(r[0]) 
+    qmax0 =np.max(r[0]) 
+    qmin1 =np.min(r[1]) 
+    qmax1 =np.max(r[1]) 
+    org=[qmin0,qmax0,qmin1,qmax1]
+    """ rlen here is (max-min) of potential, scaled to b-a by adding two more points!"""
+    rlen0=np.multiply(np.subtract(qmax0,qmin0),np.divide(np.add(float(pts[0]),1.0),np.subtract(float(pts[0]),1.0)))
+    rlen1=np.multiply(np.subtract(qmax1,qmin1),np.divide(np.add(float(pts[1]),1.0),np.subtract(float(pts[1]),1.0)))
+    mw1=mwspace(coordtype=coordtypes[0],rlen=rlen0,mass=mass[0],pts=pts[0])
+    mw2=mwspace(coordtype=coordtypes[1],rlen=rlen1,mass=mass[1],pts=pts[1])
+    if np.abs(np.subtract(mw1,mw2))>1.0E-07:
+        a=silentmweq([ [qmax0,qmin0,coordtypes[0],pts[0],mass[0]], [qmax1,qmin1,coordtypes[1],pts[1],mass[1]] ])
+        qmax0,qmin0,pts[0]=np.max(a[0].grid),np.min(a[0].grid),a[0].numpoints
+        qmax1,qmin1,pts[1]=np.max(a[1].grid),np.min(a[1].grid),a[1].numpoints
+        from sys import exit
+        if np.subtract(qmax1,org[3])>0.0:
+            if np.subtract(qmax1,org[3])<1E-11:
+                qmax1=org[3]
+            else:
+                exit('max of coordinate 1 exceeds potential')
+        if np.subtract(qmax0,org[1])>0.0:
+            if np.subtract(qmax0,org[1])<1E-11:
+                qmax0=org[1]
+            else:
+                exit('max of coordinate 0 exceeds potential')
+        if np.subtract(org[0],qmin0)>0.0:
+            if np.subtract(org[0],qmin0)<1E-11: 
+                qmin0=org[0]
+            else:
+                exit('min of coordinate 0 exceeds potential')
+        if np.subtract(org[2],qmin1)>0.0:
+            if np.subtract(org[2],qmin1)<1E-11: 
+                qmin1=org[2]
+            else:
+                exit('min of coordinate 1 exceeds potential')
+        grid_x, grid_y = np.mgrid[qmin0:qmax0:pts[0]*1j,qmin1:qmax1:pts[1]*1j]
+        vfit= griddata(np.transpose(np.array(r)),Energies,(grid_x,grid_y),method='cubic')
+        if np.any(np.isnan(vfit)):
+            exit('fit potential outside bounds')
+        print(np.ndarray.flatten(vfit)-Energies)
+        Ham=H_array(pts=pts,mass=mass,V=np.ndarray.flatten(vfit),qmax=[qmax0,qmax1],qmin=[qmin0,qmin1],coordtype=coordtypes)
+    else:   
+        Ham=H_array(pts=pts,mass=mass,V=Energies,qmax=np.amax(r,axis=1),qmin=np.amin(r,axis=1),coordtype=coordtypes)
+#    grid_x, grid_y = np.mgrid[rmin:rmax:pts[0]*1j, min(r[1]):max(r[1]):pts[1]*1j]
+#    grid_x, grid_y = np.mgrid[min(r[0]):max(r[0]):pts[0]*1j, min(r[1]):max(r[1]):pts[1]*1j]
+#    vfit= RectBivariateSpline(np.transpose(np.array(r)),(grid_x,grid_y),grid=True)
+#    Ham=H_array(pts=pts,mass=mass,V=np.ndarray.flatten(vfit),qmax=np.amax(r,axis=1),qmin=np.amin(r,axis=1),coordtype=coordtypes)
+#    Ham=H_array(pts=pts,mass=mass,V=np.ndarray.flatten(vfit),qmax=[rmax,np.pi*2],qmin=[rmin,0.0],coordtype=coordtypes)
     eigenval, eigenvec=np.linalg.eig(Ham)
+
     Esort=np.sort(eigenval*hartreetocm)
     Etoprint=int(len(Esort)/2)
     for x in range(Etoprint):
@@ -382,8 +442,14 @@ def main():
     for x in range(len(r)):
         pts.append(len(np.unique(r[x])))
     if len(coordtypes)==1:
-        eigenval= spline1dpot(pts,mass,coordtypes,Energies,r)
+        from timeit import Timer
+        t = Timer(lambda: spline1dpot(pts,mass,coordtypes,Energies,r))
+        print('time={0}'.format(t.timeit(number=10)))
+#        eigenval= spline1dpot(pts,mass,coordtypes,Energies,r)
     elif len(coordtypes)==2:
+#        from timeit import Timer
+#        t = Timer(lambda: spline2dpot(pts,mass,coordtypes,Energies,r))
+#        print('time={0}'.format(t.timeit(number=1)))
         eigenval= spline2dpot(pts,mass,coordtypes,Energies,r)
     else:
         Ham=H_array(pts=pts,mass=mass,V=Energies,qmax=np.amax(r,axis=1),qmin=np.amin(r,axis=1),coordtype=coordtypes)
