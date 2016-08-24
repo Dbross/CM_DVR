@@ -74,6 +74,7 @@ def readpotential(inp,r_units='bohr'):
     numeric_const_pattern = r"""[-+]?(?: (?: \d* \. \d+ ) | (?: \d+ \.? ) ) (?: [Ee] [+-]? \d+ ) ?"""
     rx=re.compile(numeric_const_pattern,re.VERBOSE)
     emin=0
+    mingrid=False
     for x in lines:
         if x[0] not in commentoutchars:
             if '---' in x.lower():
@@ -82,7 +83,7 @@ def readpotential(inp,r_units='bohr'):
                 mass=rx.findall(x)
                 for x in range(len(mass)):
                     mass[x]=float(mass[x])
-                print('using reduced mass of {0} amu.'.format(mass))
+                print('Input reduced mass of {0} amu.'.format(mass))
             elif 'mass' in x.lower():
                 from sys import exit
                 exit('mass defined in potential twice')
@@ -104,6 +105,8 @@ def readpotential(inp,r_units='bohr'):
                 for y in typelist:
                     if y in types:
                         coordtypes.append(y)
+            elif 'mingrid' in x.lower():
+                mingrid=True
             elif 'angstrom' in x.lower():
                 print('reading potential as angstrom, this should only be set once.')
                 r_unitconversion=(1.0/bohr)
@@ -134,7 +137,7 @@ def readpotential(inp,r_units='bohr'):
         exit()
     for x in range(len(energy)):
         energy[x]=float(energy[x])-emin
-    return (rnew,energy, mass, coordtypes)
+    return (rnew,energy, mass, coordtypes,mingrid)
 
 
 def jacobi(A,b,N=25,x=None):
@@ -360,11 +363,12 @@ def mwspace(coordtype='r',rlen=1.0,mass=1.0,pts=2):
         mwspace=multiply(power(divide(multiply(2,pi),pts),2),mass)
     return mwspace
 
-def spline2dpot(pts,mass,coordtypes,Energies,r):
+def spline2dpot(pts,mass,coordtypes,Energies,r,mingrid=False):
     import numpy as np
     from scipy.interpolate import griddata
 #    from scipy.interpolate import RectBivariateSpline
-    from potgen import silentmweq
+    from potgen import silentmweq, roundmasstoequal
+    sigfigs=4
     qmin0 =np.min(r[0]) 
     qmax0 =np.max(r[0]) 
     qmin1 =np.min(r[1]) 
@@ -375,10 +379,11 @@ def spline2dpot(pts,mass,coordtypes,Energies,r):
     rlen1=np.multiply(np.subtract(qmax1,qmin1),np.divide(np.add(float(pts[1]),1.0),np.subtract(float(pts[1]),1.0)))
     mw1=mwspace(coordtype=coordtypes[0],rlen=rlen0,mass=mass[0],pts=pts[0])
     mw2=mwspace(coordtype=coordtypes[1],rlen=rlen1,mass=mass[1],pts=pts[1])
-    if np.abs(np.subtract(mw1,mw2))>1.0E-07:
+    if True:
+#    if np.abs(np.subtract(mw1,mw2))>1.0E-07 or mingrid:
         print('Mass weighting unequal, adjusting grid\n OLD: {0:.4f}-{1:.4f} pts {2} {3:.4f}-{4:.4f} pts {5}'\
                 .format(qmin0,qmax0,pts[0],qmin1,qmax1,pts[1]))
-        a=silentmweq([ [qmax0,qmin0,coordtypes[0],pts[0],mass[0]], [qmax1,qmin1,coordtypes[1],pts[1],mass[1]] ])
+        a=silentmweq([ [qmax0,qmin0,coordtypes[0],pts[0],mass[0]], [qmax1,qmin1,coordtypes[1],pts[1],mass[1]] ],mingrid=mingrid)
         qmax0,qmin0,pts[0]=np.max(a[0].grid),np.min(a[0].grid),a[0].numpoints
         qmax1,qmin1,pts[1]=np.max(a[1].grid),np.min(a[1].grid),a[1].numpoints
         from sys import exit
@@ -408,12 +413,20 @@ def spline2dpot(pts,mass,coordtypes,Energies,r):
         vfit= griddata(np.transpose(np.array(r)),Energies,(grid_x,grid_y),method='cubic')
         if np.any(np.isnan(vfit)):
             exit('fit potential outside bounds')
-        print(np.ndarray.flatten(vfit)-Energies)
+        mass= roundmasstoequal(mass=mass,sigfigs=sigfigs,dq1=np.divide(mw1,mass[0]),dq2=np.divide(mw2,mass[1]))
+        print('using {1} sig figs of reduced mass of {0} amu.'.format(mass,sigfigs))
         Ham=H_array(pts=pts,mass=mass,V=np.ndarray.flatten(vfit),qmax=[qmax0,qmax1],qmin=[qmin0,qmin1],coordtype=coordtypes)
     else:   
+        mass= roundmasstoequal(mass=mass,sigfigs=sigfigs,dq1=np.divide(mw1,mass[0]),dq2=np.divide(mw2,mass[1]))
+        print('using {1} sig figs of reduced mass of {0} amu.'.format(mass,sigfigs))
+        print('using reduced mass of {0} amu.'.format(mass))
         Ham=H_array(pts=pts,mass=mass,V=Energies,qmax=np.amax(r,axis=1),qmin=np.amin(r,axis=1),coordtype=coordtypes)
     eigenval, eigenvec=np.linalg.eig(Ham)
-    Esort=np.sort(eigenval*hartreetocm)
+#    from scipy.sparse.linalg import eigs
+    """ Sparse solver doesn't work for high numbers of eigenvalues.... """
+#   eigenval, eigenvec=eigs(Ham,k=int((pts[0]*pts[1])-2),sigma=0,M=None,which='LM')
+    Esort=np.sort(np.multiply(eigenval.real.astype(eval(numpy_precision)),hartreetocm))
+#    Etoprint=int(len(Esort))
     Etoprint=int(len(Esort)/2)
     for x in range(Etoprint):
         print('{0:.{1}f}'.format(round(Esort[x],num_print_digits),num_print_digits))
@@ -447,7 +460,8 @@ def main():
 #        from timeit import Timer
 #        t = Timer(lambda: spline2dpot(pts,mass,coordtypes,Energies,r))
 #        print('time={0}'.format(t.timeit(number=1)))
-        eigenval= spline2dpot(pts,mass,coordtypes,Energies,r)
+        mingrid=potential[4]
+        eigenval= spline2dpot(pts,mass,coordtypes,Energies,r,mingrid=mingrid)
     else:
         Ham=H_array(pts=pts,mass=mass,V=Energies,qmax=np.amax(r,axis=1),qmin=np.amin(r,axis=1),coordtype=coordtypes)
         eigenval, eigenvec=np.linalg.eig(Ham)
