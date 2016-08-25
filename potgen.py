@@ -69,7 +69,7 @@ class q:
 
     def equivalencemwcoords(self,q_other,forcegrid=False,innerbound=True,autoselect=False,mingrid=False):
         from scipy.optimize import minimize, basinhopping
-        from numpy import subtract, multiply, int, pi, add, abs, array, argmin, less
+        from numpy import subtract, multiply, int, pi, add, abs, array, argmin, less, where, equal, mod
         m1=self.mass
         m2=q_other.mass
         trialval=[]
@@ -80,7 +80,6 @@ class q:
         if mingrid:
             mini, maxi =min(21,int(self.numpoints*0.5)),self.numpoints+1,
             minj, maxj =min(21,int(self.numpoints*0.5)),q_other.numpoints+1 
-#        print(self.maxval,self.minval,q_other.maxval,q_other.minval,self.numpoints,q_other.numpoints)
         if self.coordtype==0 and q_other.coordtype==0 and not forcegrid:
             """ modify grid of two radial coordinates to make mass weighting equal"""
             c=[self.maxval, self.minval, q_other.maxval, q_other.minval]
@@ -158,8 +157,8 @@ class q:
                         triali.append(i)
                         trialj.append(j)
         print('{0} potential solutions found'.format(len(triali)))
-        print(triali)
-        print(trialj)
+#        print(triali)
+#        print(trialj)
         if len(triali)==1:
             autoselect=True
         if len(triali)>=1:
@@ -168,7 +167,14 @@ class q:
                     diffofgrid=add(self.numpoints,q_other.numpoints)
                 else:
                     diffofgrid=add(abs(subtract(array(triali),self.numpoints)),abs(subtract(array(trialj),q_other.numpoints)))
+                if self.coordtype==2:
+                    diffofgrid=where(equal(mod(triali,2),0),diffofgrid,add(diffofgrid,1000))
+                if q_other.coordtype==2:
+                    diffofgrid=where(equal(mod(trialj,2),0),diffofgrid,add(diffofgrid,1000))
+                import numpy as np
+                np.set_printoptions(suppress=False,threshold=np.nan,linewidth=np.nan)
                 itouse=argmin(diffofgrid)
+#                print(triali[itouse],trialj[itouse],diffofgrid[itouse],min(diffofgrid))
 #                print('{0} selected as point'.format(itouse))
                 if self.coordtype==0 and q_other.coordtype==0 and not forcegrid:
                     self.maxval, self.minval, q_other.maxval, q_other.minval  = vals[itouse]
