@@ -41,6 +41,7 @@ class potential:
         self.energy=[]
         self.coordtypes=[]
         self.mass=[]
+        self.pts=[]
         self.mingrid=False
 
     def readpotential(self,inp):
@@ -116,115 +117,147 @@ class potential:
             print('{0} masses given and {1} coordinate types give'.format(len(mass),len(coordtypes)))
             from sys import exit
             exit()
-        for x in range(len(self.energy)):
-            self.energy[x]=float(self.energy[x])-self.emin
+        import numpy as np
+        self.r=np.array(self.r,dtype=eval(numpy_precision))
+        self.energy=np.subtract(np.array(self.energy,dtype=eval(numpy_precision)),self.emin)
+        """ Radial terminates with PiB walls; angular_2pi repeats; angular_pi terminates with PiB walls at 0 and pi"""
+        coordtypedict={'radial': 'r', 'angular_2pi': 'phi', 'angular_pi': 'theta'}
+        for x in range(len(self.coordtypes)):
+            self.coordtypes[x]=coordtypedict[self.coordtypes[x]]
+        for x in range(len(self.r)):
+            self.pts.append(len(np.unique(self.r[x])))
 #        return (self.r,self.energy, self.mass, self.coordtypes,self.mingrid)
 
-def openandread(filename):
-    """ Opens a file and returns the lines. Upon UnicodeDecodeError will try latin1 encoding and return those lines. Encodes all lines as utf8 and strips linebreaks before returning"""
-    import sys,os.path
-    if os.path.isfile(filename):
-        txt=open(filename,'r')
-    else:
-        sys.exit('file not found')
-    try:
-        lines=txt.readlines()
-    except UnicodeDecodeError:
-        import codecs
-        txt = codecs.open(filename,'r',encoding='latin1')
-        lines=txt.readlines()
-    for x in range(len(lines)):
-        lines[x]=lines[x].encode('utf8').decode('utf8').strip()
-    return lines
+    def solve(self):
+        if len(self.coordtypes)==1:
+#            from timeit import Timer
+#            t = Timer(lambda: spline1dpot(pts,mass,coordtypes,Energies,r))
+#            print('time={0}'.format(t.timeit(number=10)))
+            eigenval= self.spline1dpot(self.pts,self.mass,self.coordtypes,self.energy,self.r)
+        elif len(self.coordtypes)==2:
+#            from timeit import Timer
+#            t = Timer(lambda: spline2dpot(pts,mass,coordtypes,Energies,r))
+#            print('time={0}'.format(t.timeit(number=1)))
+            eigenval= self.spline2dpot(self.pts,self.mass,self.coordtypes,self.energy,self.r,mingrid=self.mingrid)
+        else:
+            raise ValueError("not implemented for %d dimensions" % (len(self.coordtypes)))
+            Ham=H_array(pts=pts,mass=mass,V=Energies,qmax=np.amax(r,axis=1),qmin=np.amin(r,axis=1),coordtype=coordtypes)
+            eigenval, eigenvec=np.linalg.eig(Ham)
+            Esort=np.sort(eigenval*hartreetocm)
+            Etoprint=int(len(Esort)/2)
+            for x in range(Etoprint):
+                print('{0:.{1}f}'.format(round(Esort[x],num_print_digits),num_print_digits))
 
-def jacobi(A,b,N=25,x=None):
-    """Solves the equation Ax=b via the Jacobi iterative method."""
-    from numpy import array, zeros, diag, diagflat, dot
-    # Create an initial guess if needed
-    if x is None:
-        x = zeros(len(A[0]))
-    # Create a vector of the diagonal elements of A
-    # and subtract them from A
-    D = diag(A)
-    R = A - diagflat(D)
-    # Iterate for N times
-    for i in range(N):
-        x = (b - dot(R,x)) / D
-    return x
+    def spline1dpot(self,pts,mass,coordtypes,Energies_raw,r_raw):
+        import numpy as np
+        xmin,emin=return1dsplinemin(r_raw[0],Energies_raw)
+        r=r_raw-np.min(xmin)
+        Energies=Energies_raw-np.min(emin)
+        Ener_spline=cubic1dspline(r[0],Energies)
+        xnew = np.linspace(min(r[0]),max(r[0]), num=num_points)
+        vfit=return1dsplinevalue(Ener_spline,xnew)
+        Ham=H_array(pts=pts,mass=mass,V=Energies,qmax=np.amax(r,axis=1),qmin=np.amin(r,axis=1),coordtype=coordtypes)
+        eigenval, eigenvec=np.linalg.eig(Ham)
+        Esort=np.sort(eigenval*hartreetocm)
+#     plotting stuff 
+        Etoprint=int(len(Esort)/2)
+        if plotit:
+            vfitcm=vfit*hartreetocm
+            import matplotlib.pyplot as plt
+            plt.figure()
+            plt.plot(r[0],Energies*hartreetocm,linestyle='none',marker='o')
+            plt.plot(xnew,vfitcm,linestyle='solid',marker='None')
+            mincut=[]
+            maxcut=[]
+            maxpot=np.max(np.multiply(Energies,hartreetocm))
+            for x in range(Etoprint):
+                for y in range(len(xnew)):
+                    if Esort[x]>vfitcm[y]:
+                        mincut.append(xnew[y])
+                        break
+            for x in range(Etoprint):
+                for y in range(len(xnew)-1,1,-1):
+                    if Esort[x]>vfitcm[y]:
+                        maxcut.append(xnew[y])
+                        break
+            for x in range(Etoprint):
+                plt.plot((mincut[x],maxcut[x]),(Esort[x],Esort[x]),linestyle='solid')
+#        plt.legend(['Points', 'Cubic Spline'])
+            plt.title('Cubic-spline interpolation')
+            plt.axis()
+            plt.show()
+        for x in range(Etoprint):
+            print('{0:.{1}f}'.format(round(Esort[x],num_print_digits),num_print_digits))
+        return eigenval 
 
-def cubic1dspline(x,y):
-    """ Performs a cubic spline with no smoothing and returns the spline function"""
-    from scipy.interpolate import splrep
-    return splrep(x, y, s=0)
-
-def return1dsplinevalue(spline,xnew):
-    """ returns the value(s) of a spline function at a given x(s)"""
-    from scipy.interpolate import splev
-    return splev(xnew, spline, der=0)
-
-def return1dsplinemin(x,y):
-    """Returns the minimum from a spline function"""
-    from scipy.interpolate import splrep, splder, sproot
-    spline=splrep(x, y, s=0,k=4)
-    xmin=sproot(splder(spline) )
-    return (xmin,return1dsplinevalue(spline,xmin))
-#    return spline.interpolate.derivative().roots()
-
-def H_array_1d(pts=5,coordtype='r',mass=0.5,qmin=1.0,qmax=2.0):
-    import numpy as np
-    n=pts
-    A=np.zeros((n,n),dtype=eval(numpy_precision))
-# In atomic units
-# One has been added to i and j inside to make this consistent with paper
-    mass_conv=mass*(amu/e_mass)
-    rlen=0
-    for i in range(pts):
-        for j in range(pts):
-            if coordtype=='r':
-                n1=pts+1
-                """ rlen here is (max-min) of potential, scaled to b-a by adding two more points!"""
-                rlen=np.multiply(np.subtract(qmax,qmin),np.divide(np.add(float(pts),1.0),np.subtract(float(pts),1.0)))
-                prefactor=np.divide(np.power(np.pi,2),np.multiply(np.multiply(4,mass_conv),np.power(rlen,2)))
-                if i==j:
-                    A[i,i]=np.multiply(prefactor,np.subtract(\
-                            np.divide(np.add(np.multiply(2,np.power(n1,2)),1),3),np.power(np.sin(np.divide(np.multiply(np.add(i,1),np.pi),n1)),-2)))
+    def spline2dpot(self,pts,mass,coordtypes,Energies,r,mingrid=False):
+        import numpy as np
+        from scipy.interpolate import griddata
+#        from scipy.interpolate import RectBivariateSpline
+        from potgen import silentmweq, roundmasstoequal
+        sigfigs=4
+        qmin0 =np.min(r[0]) 
+        qmax0 =np.max(r[0]) 
+        qmin1 =np.min(r[1]) 
+        qmax1 =np.max(r[1]) 
+        org=[qmin0,qmax0,qmin1,qmax1]
+        """ rlen here is (max-min) of potential, scaled to b-a by adding two more points!"""
+        rlen0=np.multiply(np.subtract(qmax0,qmin0),np.divide(np.add(float(pts[0]),1.0),np.subtract(float(pts[0]),1.0)))
+        rlen1=np.multiply(np.subtract(qmax1,qmin1),np.divide(np.add(float(pts[1]),1.0),np.subtract(float(pts[1]),1.0)))
+        mw1=mwspace(coordtype=coordtypes[0],rlen=rlen0,mass=mass[0],pts=pts[0])
+        mw2=mwspace(coordtype=coordtypes[1],rlen=rlen1,mass=mass[1],pts=pts[1])
+        if np.abs(np.subtract(mw1,mw2))>1.0E-07 or mingrid:
+            print('Mass weighting unequal, adjusting grid\n OLD: {0:.4f}-{1:.4f} pts {2} {3:.4f}-{4:.4f} pts {5}'\
+                    .format(qmin0,qmax0,pts[0],qmin1,qmax1,pts[1]))
+            a=silentmweq([ [qmax0,qmin0,coordtypes[0],pts[0],mass[0]], [qmax1,qmin1,coordtypes[1],pts[1],mass[1]] ],mingrid=mingrid)
+            """ It is possible to override points and grid to be fit to here... Thinking about adding a manual option but unsure why I'd do that..."""
+            qmax0,qmin0,pts[0]=np.max(a[0].grid),np.min(a[0].grid),a[0].numpoints
+            qmax1,qmin1,pts[1]=np.max(a[1].grid),np.min(a[1].grid),a[1].numpoints
+            from sys import exit
+            if np.subtract(qmax1,org[3])>0.0:
+                if np.subtract(qmax1,org[3])<1E-11:
+                    qmax1=org[3]
                 else:
-                    A[i,j]=np.multiply(np.multiply(prefactor,np.power(-1,np.subtract(i,j)))\
-                            ,np.subtract(np.power(np.sin(np.divide(np.multiply(np.pi,np.subtract(i,j)) , np.multiply(2 ,n1) )),-2) , \
-                            np.power(np.sin(np.divide(np.multiply(np.pi,np.add(i,np.add(j,2))) , np.multiply(2 , n1))),-2)))
-# 0 to 2pi in appendix A section 4
-            elif coordtype=='phi':
-                prefactor=(1.0)/(2*mass_conv)
-                m=int(np.divide(pts,2))
-                if (2*m+1)!=pts:
-                    from sys import exit
-                    exit('in phi coordinate 2m+1 != n, must use odd number of points')
-                if i==j:
-                    A[np.sum(i),np.sum(j)]=np.multiply(prefactor,np.divide(np.multiply(m,np.add(m,1)),3))
+                    exit('max of coordinate 1 exceeds potential')
+            if np.subtract(qmax0,org[1])>0.0:
+                if np.subtract(qmax0,org[1])<1E-11:
+                    qmax0=org[1]
                 else:
-                    cosij=np.cos(np.divide(np.multiply(np.pi,np.subtract(i,j)),n))
-                    A[np.sum(i),np.sum(j)]=\
-                            np.multiply(np.multiply(np.power(-1,np.subtract(i,j)),prefactor),np.divide(cosij,np.multiply(2,np.subtract(1,np.power(cosij,2)))))
-            elif coordtype=='theta':
-                n1=pts+1
-                prefactor=np.divide(1.0,np.multiply(4,mass_conv))
-                if i==j:
-                    A[i,i]=np.multiply(prefactor,np.subtract(\
-                            np.divide(np.add(np.multiply(2,np.power(n1,2)),1),3),np.power(np.sin(np.divide(np.multiply(np.add(i,1),np.pi),n1)),-2)))
+                    exit('max of coordinate 0 exceeds potential')
+            if np.subtract(org[0],qmin0)>0.0:
+                if np.subtract(org[0],qmin0)<1E-11: 
+                    qmin0=org[0]
                 else:
-                    A[i,j]=np.multiply(np.multiply(prefactor,np.power(-1,np.subtract(i,j)))\
-                            ,np.subtract(np.power(np.sin(np.divide(np.multiply(np.pi,np.subtract(i,j)) , np.multiply(2 ,n1) )),-2) , \
-                            np.power(np.sin(np.divide(np.multiply(np.pi,np.add(i,np.add(j,2))) , np.multiply(2 , n1))),-2)))
-                pass
-            else:
-                from sys import exit
-                exit('coordinate type not recongized')
-    mws=mwspace(rlen=rlen,mass=mass,coordtype=coordtype,pts=pts)
-#    if coordtype=='r' or coordtype=='theta':
-#        print('{1} has prefactor of {0:.4e} with b-a={2}'.format(prefactor, coordtype,rlen))
-#    else:
-#        print('{1} has prefactor of {0:.4e}'.format(prefactor/8, coordtype))
-    return (A,mws)
+                    exit('min of coordinate 0 exceeds potential')
+            if np.subtract(org[2],qmin1)>0.0:
+                if np.subtract(org[2],qmin1)<1E-11: 
+                    qmin1=org[2]
+                else:
+                    exit('min of coordinate 1 exceeds potential')
+            grid_x, grid_y = np.mgrid[qmin0:qmax0:pts[0]*1j,qmin1:qmax1:pts[1]*1j]
+            print('NEW: {0:.4f}-{1:.4f} pts {2} {3:.4f}-{4:.4f} pts {5}'\
+                    .format(qmin0,qmax0,pts[0],qmin1,qmax1,pts[1]))
+            vfit= griddata(np.transpose(np.array(r)),Energies,(grid_x,grid_y),method='cubic')
+            if np.any(np.isnan(vfit)):
+                exit('fit potential outside bounds')
+            mass= roundmasstoequal(mass=mass,sigfigs=sigfigs,dq1=np.divide(mw1,mass[0]),dq2=np.divide(mw2,mass[1]))
+            print('using {1} sig figs of reduced mass of {0} amu.'.format(mass,sigfigs))
+            Ham=H_array(pts=pts,mass=mass,V=np.ndarray.flatten(vfit),qmax=[qmax0,qmax1],qmin=[qmin0,qmin1],coordtype=coordtypes)
+        else:   
+            mass= roundmasstoequal(mass=mass,sigfigs=sigfigs,dq1=np.divide(mw1,mass[0]),dq2=np.divide(mw2,mass[1]))
+            print('using {1} sig figs of reduced mass of {0} amu.'.format(mass,sigfigs))
+            print('using reduced mass of {0} amu.'.format(mass))
+            Ham=H_array(pts=pts,mass=mass,V=Energies,qmax=np.amax(r,axis=1),qmin=np.amin(r,axis=1),coordtype=coordtypes)
+        eigenval, eigenvec=np.linalg.eig(Ham)
+#        from scipy.sparse.linalg import eigs
+        """ Sparse solver doesn't give speedup for computing eigenvalues of all solutions.... """
+#       eigenval, eigenvec=eigs(Ham,k=int((pts[0]*pts[1])-2),sigma=0,M=None,which='LM')
+        Esort=np.sort(np.multiply(eigenval.real.astype(eval(numpy_precision)),hartreetocm))
+#        Etoprint=int(len(Esort))
+        Etoprint=int(len(Esort)/2)
+        for x in range(Etoprint):
+            print('{0:.{1}f}'.format(round(Esort[x],num_print_digits),num_print_digits))
+        return eigenval 
 
 def H_array(pts=5,coordtype=['r'],mass=[0.5],qmin=[1.0],qmax=[2.0],V=[]):
     """ input 
@@ -307,47 +340,111 @@ def H_array(pts=5,coordtype=['r'],mass=[0.5],qmin=[1.0],qmax=[2.0],V=[]):
         raise ValueError("not implemented for %d dimensions" % (ncoord))
     return A
 
-def spline1dpot(pts,mass,coordtypes,Energies_raw,r_raw):
+def H_array_1d(pts=5,coordtype='r',mass=0.5,qmin=1.0,qmax=2.0):
     import numpy as np
-    xmin,emin=return1dsplinemin(r_raw[0],Energies_raw)
-    r=r_raw-np.min(xmin)
-    Energies=Energies_raw-np.min(emin)
-    Ener_spline=cubic1dspline(r[0],Energies)
-    xnew = np.linspace(min(r[0]),max(r[0]), num=num_points)
-    vfit=return1dsplinevalue(Ener_spline,xnew)
-    Ham=H_array(pts=pts,mass=mass,V=Energies,qmax=np.amax(r,axis=1),qmin=np.amin(r,axis=1),coordtype=coordtypes)
-    eigenval, eigenvec=np.linalg.eig(Ham)
-    Esort=np.sort(eigenval*hartreetocm)
-# plotting stuff 
-    Etoprint=int(len(Esort)/2)
-    if plotit:
-        vfitcm=vfit*hartreetocm
-        import matplotlib.pyplot as plt
-        plt.figure()
-        plt.plot(r[0],Energies*hartreetocm,linestyle='none',marker='o')
-        plt.plot(xnew,vfitcm,linestyle='solid',marker='None')
-        mincut=[]
-        maxcut=[]
-        maxpot=np.max(np.multiply(Energies,hartreetocm))
-        for x in range(Etoprint):
-            for y in range(len(xnew)):
-                if Esort[x]>vfitcm[y]:
-                    mincut.append(xnew[y])
-                    break
-        for x in range(Etoprint):
-            for y in range(len(xnew)-1,1,-1):
-                if Esort[x]>vfitcm[y]:
-                    maxcut.append(xnew[y])
-                    break
-        for x in range(Etoprint):
-            plt.plot((mincut[x],maxcut[x]),(Esort[x],Esort[x]),linestyle='solid')
-#    plt.legend(['Points', 'Cubic Spline'])
-        plt.title('Cubic-spline interpolation')
-        plt.axis()
-        plt.show()
-    for x in range(Etoprint):
-        print('{0:.{1}f}'.format(round(Esort[x],num_print_digits),num_print_digits))
-    return eigenval 
+    n=pts
+    A=np.zeros((n,n),dtype=eval(numpy_precision))
+# In atomic units
+# One has been added to i and j inside to make this consistent with paper
+    mass_conv=mass*(amu/e_mass)
+    rlen=0
+    for i in range(pts):
+        for j in range(pts):
+            if coordtype=='r':
+                n1=pts+1
+                """ rlen here is (max-min) of potential, scaled to b-a by adding two more points!"""
+                rlen=np.multiply(np.subtract(qmax,qmin),np.divide(np.add(float(pts),1.0),np.subtract(float(pts),1.0)))
+                prefactor=np.divide(np.power(np.pi,2),np.multiply(np.multiply(4,mass_conv),np.power(rlen,2)))
+                if i==j:
+                    A[i,i]=np.multiply(prefactor,np.subtract(\
+                            np.divide(np.add(np.multiply(2,np.power(n1,2)),1),3),np.power(np.sin(np.divide(np.multiply(np.add(i,1),np.pi),n1)),-2)))
+                else:
+                    A[i,j]=np.multiply(np.multiply(prefactor,np.power(-1,np.subtract(i,j)))\
+                            ,np.subtract(np.power(np.sin(np.divide(np.multiply(np.pi,np.subtract(i,j)) , np.multiply(2 ,n1) )),-2) , \
+                            np.power(np.sin(np.divide(np.multiply(np.pi,np.add(i,np.add(j,2))) , np.multiply(2 , n1))),-2)))
+# 0 to 2pi in appendix A section 4
+            elif coordtype=='phi':
+                prefactor=(1.0)/(2*mass_conv)
+                m=int(np.divide(pts,2))
+                if (2*m+1)!=pts:
+                    from sys import exit
+                    exit('in phi coordinate 2m+1 != n, must use odd number of points')
+                if i==j:
+                    A[np.sum(i),np.sum(j)]=np.multiply(prefactor,np.divide(np.multiply(m,np.add(m,1)),3))
+                else:
+                    cosij=np.cos(np.divide(np.multiply(np.pi,np.subtract(i,j)),n))
+                    A[np.sum(i),np.sum(j)]=\
+                            np.multiply(np.multiply(np.power(-1,np.subtract(i,j)),prefactor),np.divide(cosij,np.multiply(2,np.subtract(1,np.power(cosij,2)))))
+            elif coordtype=='theta':
+                n1=pts+1
+                prefactor=np.divide(1.0,np.multiply(4,mass_conv))
+                if i==j:
+                    A[i,i]=np.multiply(prefactor,np.subtract(\
+                            np.divide(np.add(np.multiply(2,np.power(n1,2)),1),3),np.power(np.sin(np.divide(np.multiply(np.add(i,1),np.pi),n1)),-2)))
+                else:
+                    A[i,j]=np.multiply(np.multiply(prefactor,np.power(-1,np.subtract(i,j)))\
+                            ,np.subtract(np.power(np.sin(np.divide(np.multiply(np.pi,np.subtract(i,j)) , np.multiply(2 ,n1) )),-2) , \
+                            np.power(np.sin(np.divide(np.multiply(np.pi,np.add(i,np.add(j,2))) , np.multiply(2 , n1))),-2)))
+                pass
+            else:
+                from sys import exit
+                exit('coordinate type not recongized')
+    mws=mwspace(rlen=rlen,mass=mass,coordtype=coordtype,pts=pts)
+#    if coordtype=='r' or coordtype=='theta':
+#        print('{1} has prefactor of {0:.4e} with b-a={2}'.format(prefactor, coordtype,rlen))
+#    else:
+#        print('{1} has prefactor of {0:.4e}'.format(prefactor/8, coordtype))
+    return (A,mws)
+
+def openandread(filename):
+    """ Opens a file and returns the lines. Upon UnicodeDecodeError will try latin1 encoding and return those lines. Encodes all lines as utf8 and strips linebreaks before returning"""
+    import sys,os.path
+    if os.path.isfile(filename):
+        txt=open(filename,'r')
+    else:
+        sys.exit('file not found')
+    try:
+        lines=txt.readlines()
+    except UnicodeDecodeError:
+        import codecs
+        txt = codecs.open(filename,'r',encoding='latin1')
+        lines=txt.readlines()
+    for x in range(len(lines)):
+        lines[x]=lines[x].encode('utf8').decode('utf8').strip()
+    return lines
+
+def jacobi(A,b,N=25,x=None):
+    """Solves the equation Ax=b via the Jacobi iterative method."""
+    from numpy import array, zeros, diag, diagflat, dot
+    # Create an initial guess if needed
+    if x is None:
+        x = zeros(len(A[0]))
+    # Create a vector of the diagonal elements of A
+    # and subtract them from A
+    D = diag(A)
+    R = A - diagflat(D)
+    # Iterate for N times
+    for i in range(N):
+        x = (b - dot(R,x)) / D
+    return x
+
+def cubic1dspline(x,y):
+    """ Performs a cubic spline with no smoothing and returns the spline function"""
+    from scipy.interpolate import splrep
+    return splrep(x, y, s=0)
+
+def return1dsplinevalue(spline,xnew):
+    """ returns the value(s) of a spline function at a given x(s)"""
+    from scipy.interpolate import splev
+    return splev(xnew, spline, der=0)
+
+def return1dsplinemin(x,y):
+    """Returns the minimum from a spline function"""
+    from scipy.interpolate import splrep, splder, sproot
+    spline=splrep(x, y, s=0,k=4)
+    xmin=sproot(splder(spline) )
+    return (xmin,return1dsplinevalue(spline,xmin))
+#    return spline.interpolate.derivative().roots()
 
 def mwspace(coordtype='r',rlen=1.0,mass=1.0,pts=2):
     from numpy import multiply, power, divide, pi , add
@@ -359,75 +456,6 @@ def mwspace(coordtype='r',rlen=1.0,mass=1.0,pts=2):
         mwspace=multiply(power(divide(multiply(2,pi),pts),2),mass)
     return mwspace
 
-def spline2dpot(pts,mass,coordtypes,Energies,r,mingrid=False):
-    import numpy as np
-    from scipy.interpolate import griddata
-#    from scipy.interpolate import RectBivariateSpline
-    from potgen import silentmweq, roundmasstoequal
-    sigfigs=4
-    qmin0 =np.min(r[0]) 
-    qmax0 =np.max(r[0]) 
-    qmin1 =np.min(r[1]) 
-    qmax1 =np.max(r[1]) 
-    org=[qmin0,qmax0,qmin1,qmax1]
-    """ rlen here is (max-min) of potential, scaled to b-a by adding two more points!"""
-    rlen0=np.multiply(np.subtract(qmax0,qmin0),np.divide(np.add(float(pts[0]),1.0),np.subtract(float(pts[0]),1.0)))
-    rlen1=np.multiply(np.subtract(qmax1,qmin1),np.divide(np.add(float(pts[1]),1.0),np.subtract(float(pts[1]),1.0)))
-    mw1=mwspace(coordtype=coordtypes[0],rlen=rlen0,mass=mass[0],pts=pts[0])
-    mw2=mwspace(coordtype=coordtypes[1],rlen=rlen1,mass=mass[1],pts=pts[1])
-    if np.abs(np.subtract(mw1,mw2))>1.0E-07 or mingrid:
-        print('Mass weighting unequal, adjusting grid\n OLD: {0:.4f}-{1:.4f} pts {2} {3:.4f}-{4:.4f} pts {5}'\
-                .format(qmin0,qmax0,pts[0],qmin1,qmax1,pts[1]))
-        a=silentmweq([ [qmax0,qmin0,coordtypes[0],pts[0],mass[0]], [qmax1,qmin1,coordtypes[1],pts[1],mass[1]] ],mingrid=mingrid)
-        """ It is possible to override points and grid to be fit to here... Thinking about adding a manual option but unsure why I'd do that..."""
-        qmax0,qmin0,pts[0]=np.max(a[0].grid),np.min(a[0].grid),a[0].numpoints
-        qmax1,qmin1,pts[1]=np.max(a[1].grid),np.min(a[1].grid),a[1].numpoints
-        from sys import exit
-        if np.subtract(qmax1,org[3])>0.0:
-            if np.subtract(qmax1,org[3])<1E-11:
-                qmax1=org[3]
-            else:
-                exit('max of coordinate 1 exceeds potential')
-        if np.subtract(qmax0,org[1])>0.0:
-            if np.subtract(qmax0,org[1])<1E-11:
-                qmax0=org[1]
-            else:
-                exit('max of coordinate 0 exceeds potential')
-        if np.subtract(org[0],qmin0)>0.0:
-            if np.subtract(org[0],qmin0)<1E-11: 
-                qmin0=org[0]
-            else:
-                exit('min of coordinate 0 exceeds potential')
-        if np.subtract(org[2],qmin1)>0.0:
-            if np.subtract(org[2],qmin1)<1E-11: 
-                qmin1=org[2]
-            else:
-                exit('min of coordinate 1 exceeds potential')
-        grid_x, grid_y = np.mgrid[qmin0:qmax0:pts[0]*1j,qmin1:qmax1:pts[1]*1j]
-        print('NEW: {0:.4f}-{1:.4f} pts {2} {3:.4f}-{4:.4f} pts {5}'\
-                .format(qmin0,qmax0,pts[0],qmin1,qmax1,pts[1]))
-        vfit= griddata(np.transpose(np.array(r)),Energies,(grid_x,grid_y),method='cubic')
-        if np.any(np.isnan(vfit)):
-            exit('fit potential outside bounds')
-        mass= roundmasstoequal(mass=mass,sigfigs=sigfigs,dq1=np.divide(mw1,mass[0]),dq2=np.divide(mw2,mass[1]))
-        print('using {1} sig figs of reduced mass of {0} amu.'.format(mass,sigfigs))
-        Ham=H_array(pts=pts,mass=mass,V=np.ndarray.flatten(vfit),qmax=[qmax0,qmax1],qmin=[qmin0,qmin1],coordtype=coordtypes)
-    else:   
-        mass= roundmasstoequal(mass=mass,sigfigs=sigfigs,dq1=np.divide(mw1,mass[0]),dq2=np.divide(mw2,mass[1]))
-        print('using {1} sig figs of reduced mass of {0} amu.'.format(mass,sigfigs))
-        print('using reduced mass of {0} amu.'.format(mass))
-        Ham=H_array(pts=pts,mass=mass,V=Energies,qmax=np.amax(r,axis=1),qmin=np.amin(r,axis=1),coordtype=coordtypes)
-    eigenval, eigenvec=np.linalg.eig(Ham)
-#    from scipy.sparse.linalg import eigs
-    """ Sparse solver doesn't give speedup for computing eigenvalues of all solutions.... """
-#   eigenval, eigenvec=eigs(Ham,k=int((pts[0]*pts[1])-2),sigma=0,M=None,which='LM')
-    Esort=np.sort(np.multiply(eigenval.real.astype(eval(numpy_precision)),hartreetocm))
-#    Etoprint=int(len(Esort))
-    Etoprint=int(len(Esort)/2)
-    for x in range(Etoprint):
-        print('{0:.{1}f}'.format(round(Esort[x],num_print_digits),num_print_digits))
-    return eigenval 
-
 def main():
     constants(CODATA_year=2010)
     import numpy as np
@@ -437,35 +465,7 @@ def main():
         pot.readpotential(inp=sys.argv[1])
     else:
         pot.readpotential(inp=input('Give the file with the potential: '))
-    r=np.array(pot.r,dtype=eval(numpy_precision))
-    Energies=np.array(pot.energy,dtype=eval(numpy_precision))
-    mass=pot.mass
-    coordtypes=pot.coordtypes
-    """ Radial terminates with PiB walls; angular_2pi repeats; angular_pi terminates with PiB walls at 0 and pi"""
-    coordtypedict={'radial': 'r', 'angular_2pi': 'phi', 'angular_pi': 'theta'}
-    for x in range(len(coordtypes)):
-        coordtypes[x]=coordtypedict[coordtypes[x]]
-    pts=[]
-    for x in range(len(r)):
-        pts.append(len(np.unique(r[x])))
-    if len(coordtypes)==1:
-#        from timeit import Timer
-#        t = Timer(lambda: spline1dpot(pts,mass,coordtypes,Energies,r))
-#        print('time={0}'.format(t.timeit(number=10)))
-        eigenval= spline1dpot(pts,mass,coordtypes,Energies,r)
-    elif len(coordtypes)==2:
-#        from timeit import Timer
-#        t = Timer(lambda: spline2dpot(pts,mass,coordtypes,Energies,r))
-#        print('time={0}'.format(t.timeit(number=1)))
-        mingrid=pot.mingrid
-        eigenval= spline2dpot(pts,mass,coordtypes,Energies,r,mingrid=mingrid)
-    else:
-        Ham=H_array(pts=pts,mass=mass,V=Energies,qmax=np.amax(r,axis=1),qmin=np.amin(r,axis=1),coordtype=coordtypes)
-        eigenval, eigenvec=np.linalg.eig(Ham)
-        Esort=np.sort(eigenval*hartreetocm)
-        Etoprint=int(len(Esort)/2)
-        for x in range(Etoprint):
-            print('{0:.{1}f}'.format(round(Esort[x],num_print_digits),num_print_digits))
+    pot.solve()
 
 # jacobian stuff
 #    A = array([[2.0,1.0],[5.0,7.0]])
