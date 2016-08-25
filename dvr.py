@@ -34,6 +34,91 @@ def constants(CODATA_year=2010):
     hartreetocm= 2*rydberg
 #    hartreetocm=219474.6313717
 
+class potential:
+# anyline starting with ! or # is commented out
+    def __init__(self):
+        self.r=[]
+        self.energy=[]
+        self.coordtypes=[]
+        self.mass=[]
+        self.mingrid=False
+
+    def readpotential(self,inp):
+        #potential should have coordinate and units as main input
+        commentoutchars=['!','#']
+        types=['angular_2pi','radial','angular_pi']
+        lines=openandread(inp)
+        r_unitconversion=1.0
+        r=[]
+#       r_unitconversion=1.88972613
+        import re
+        numeric_const_pattern = r"""[-+]?(?: (?: \d* \. \d+ ) | (?: \d+ \.? ) ) (?: [Ee] [+-]? \d+ ) ?"""
+        rx=re.compile(numeric_const_pattern,re.VERBOSE)
+        self.emin=0
+        massassigned=False
+        for x in lines:
+            if x[0] not in commentoutchars:
+                if '---' in x.lower():
+                    break
+                elif 'mass' in x.lower() and not massassigned:
+                    self.mass=rx.findall(x)
+                    for x in range(len(self.mass)):
+                        self.mass[x]=float(self.mass[x])
+                    print('Input reduced mass of {0} amu.'.format(self.mass))
+                    massassigned=True
+                elif 'mass' in x.lower() and massassigned:
+                    from sys import exit
+                    exit('mass defined in potential twice')
+                elif 'bohr' in x.lower():
+                    print('reading potential as bohr, this should only be set once.')
+                    r_unitconversion=1.0
+                elif 'emin' in x.lower():
+                    self.emin=rx.findall(x)
+                    if len(self.emin)>1:
+                        for x in self.emin:
+                            x=float(x)
+                        print('found multiple energy minimum {0} using {1} as minimum'.format(self.emin,min(self.emin)))
+                        self.emin=min(self.emin)
+                    else:
+                        self.emin=float(emin[0])
+                    print('shifting energy minimum to {} a.u.'.format(self.emin))
+                elif types[0] in x.lower() or types[1] in x.lower() or types[2] in x.lower():
+                    typelist=x.lower().replace(',',' ').split()
+                    for y in typelist:
+                        if y in types:
+                            self.coordtypes.append(y)
+                elif 'mingrid' in x.lower():
+                    self.mingrid=True
+                elif 'angstrom' in x.lower():
+                    print('reading potential as angstrom, this should only be set once.')
+                    r_unitconversion=(1.0/bohr)
+                else:
+                    linesplit=x.split()
+                    rtmp=[]
+                    for x in range(0,len(linesplit)-1):
+                        rtmp.append(float(linesplit[x])*r_unitconversion)
+                    r.append(rtmp)
+                    self.energy.append(float(linesplit[len(linesplit)-1]))
+                    if len(r[-1])!=len(self.coordtypes):
+                        from sys import exit
+                        print(x)
+                        exit('number of coordinates given inconsistent with coordinate types given')
+            else:
+                print('{0} commented out'.format(x[1:].strip()))
+        for i in range(len(r[0])):
+            rtmp=[r[j][i] for j in range(len(r))]
+            self.r.append(rtmp)
+        if len(self.mass)!=len(self.coordtypes):
+            print('{0} masses given and {1} coordinate types give'.format(len(mass),len(coordtypes)))
+            from sys import exit
+            exit()
+        if len(self.mass)!=len(self.coordtypes):
+            print('{0} masses given and {1} coordinate types give'.format(len(mass),len(coordtypes)))
+            from sys import exit
+            exit()
+        for x in range(len(self.energy)):
+            self.energy[x]=float(self.energy[x])-self.emin
+#        return (self.r,self.energy, self.mass, self.coordtypes,self.mingrid)
 
 def openandread(filename):
     """ Opens a file and returns the lines. Upon UnicodeDecodeError will try latin1 encoding and return those lines. Encodes all lines as utf8 and strips linebreaks before returning"""
@@ -51,94 +136,6 @@ def openandread(filename):
     for x in range(len(lines)):
         lines[x]=lines[x].encode('utf8').decode('utf8').strip()
     return lines
-
-def readpotential(inp,r_units='bohr'):
-#potential should have coordinate and units as main input
-# anyline starting with ! or # is commented out
-    commentoutchars=['!','#']
-    lines=openandread(inp)
-    r=[]
-    energy=[]
-    coordtypes=[]
-    types=['angular_2pi','radial','angular_pi']
-    mass=0
-    if r_units.lower()=='bohr':
-        r_unitconversion=1.0
-    elif r_units.lower()=='angstrom':
-        r_unitconversion=(1.0/bohr)
-#        r_unitconversion=1.88972613
-    else:
-        from sys import exit
-        exit('No valid units given for length')
-    import re
-    numeric_const_pattern = r"""[-+]?(?: (?: \d* \. \d+ ) | (?: \d+ \.? ) ) (?: [Ee] [+-]? \d+ ) ?"""
-    rx=re.compile(numeric_const_pattern,re.VERBOSE)
-    emin=0
-    mingrid=False
-    for x in lines:
-        if x[0] not in commentoutchars:
-            if '---' in x.lower():
-                break
-            elif 'mass' in x.lower() and mass==0:
-                mass=rx.findall(x)
-                for x in range(len(mass)):
-                    mass[x]=float(mass[x])
-                print('Input reduced mass of {0} amu.'.format(mass))
-            elif 'mass' in x.lower():
-                from sys import exit
-                exit('mass defined in potential twice')
-            elif 'bohr' in x.lower():
-                print('reading potential as bohr, this should only be set once.')
-                r_unitconversion=1.0
-            elif 'emin' in x.lower():
-                emin=rx.findall(x)
-                if len(emin)>1:
-                    for x in emin:
-                        x=float(x)
-                    print('found multiple energy minimum {0} using {1} as minimum'.format(emin,min(emin)))
-                    emin=min(emin)
-                else:
-                    emin=float(emin[0])
-                print('shifting energy minimum to {} a.u.'.format(emin))
-            elif types[0] in x.lower() or types[1] in x.lower() or types[2] in x.lower():
-                typelist=x.lower().replace(',',' ').split()
-                for y in typelist:
-                    if y in types:
-                        coordtypes.append(y)
-            elif 'mingrid' in x.lower():
-                mingrid=True
-            elif 'angstrom' in x.lower():
-                print('reading potential as angstrom, this should only be set once.')
-                r_unitconversion=(1.0/bohr)
-            else:
-                linesplit=x.split()
-                rtmp=[]
-                for x in range(0,len(linesplit)-1):
-                    rtmp.append(float(linesplit[x])*r_unitconversion)
-                r.append(rtmp)
-                energy.append(float(linesplit[len(linesplit)-1]))
-                if len(r[-1])!=len(coordtypes):
-                    from sys import exit
-                    print(x)
-                    exit('number of coordinates given inconsistent with coordinate types given')
-        else:
-            print('{0} commented out'.format(x[1:].strip()))
-    rnew=[]
-    for i in range(len(r[0])):
-        rtmp=[r[j][i] for j in range(len(r))]
-        rnew.append(rtmp)
-    if len(mass)!=len(coordtypes):
-        print('{0} masses given and {1} coordinate types give'.format(len(mass),len(coordtypes)))
-        from sys import exit
-        exit()
-    if len(mass)!=len(coordtypes):
-        print('{0} masses given and {1} coordinate types give'.format(len(mass),len(coordtypes)))
-        from sys import exit
-        exit()
-    for x in range(len(energy)):
-        energy[x]=float(energy[x])-emin
-    return (rnew,energy, mass, coordtypes,mingrid)
-
 
 def jacobi(A,b,N=25,x=None):
     """Solves the equation Ax=b via the Jacobi iterative method."""
@@ -292,18 +289,17 @@ def H_array(pts=5,coordtype=['r'],mass=[0.5],qmin=[1.0],qmax=[2.0],V=[]):
                 it[0]=D1[i,i1]
             it.iternext()
     elif ncoord==2:
+        """ It is probably possible to vectorize this with np.where such that iteration is not required: 
+            that said this it isn't necessary atm, since eig is n^3 and much slower"""
         while not it.finished:
             if np.equal(indices[0,it.index],indices[3,it.index]):
                 if np.equal(indices[1,it.index],indices[2,it.index] ):
                     it[0]=np.add(np.add(D1[indices[0,it.index],indices[3,it.index]], D2[indices[1,it.index],indices[2,it.index]]),V[k])
                     k+=1
-#                    print(it.index,indices[0,it.index],indices[3,it.index],indices[1,it.index],indices[2,it.index])
                 else:
                     it[0]=D2[indices[1,it.index],indices[2,it.index]]
-#                    print(it.index,indices[0,it.index],indices[3,it.index],indices[1,it.index],indices[2,it.index])
             elif np.equal(indices[1,it.index],indices[2,it.index] ): 
                 it[0]=D1[indices[0,it.index],indices[3,it.index]]
-#                print(it.index,indices[0,it.index],indices[3,it.index],indices[1,it.index],indices[2,it.index])
                 for i in range(pts[1]-1-indices[1,it.index]):
                     it.iternext()
             it.iternext()
@@ -349,8 +345,8 @@ def spline1dpot(pts,mass,coordtypes,Energies_raw,r_raw):
         plt.title('Cubic-spline interpolation')
         plt.axis()
         plt.show()
-#    for x in range(Etoprint):
-#        print('{0:.{1}f}'.format(round(Esort[x],num_print_digits),num_print_digits))
+    for x in range(Etoprint):
+        print('{0:.{1}f}'.format(round(Esort[x],num_print_digits),num_print_digits))
     return eigenval 
 
 def mwspace(coordtype='r',rlen=1.0,mass=1.0,pts=2):
@@ -436,14 +432,15 @@ def main():
     constants(CODATA_year=2010)
     import numpy as np
     import sys
+    pot=potential()
     if len(sys.argv)>1:
-        potential=readpotential(sys.argv[1],r_units='angstrom')
+        pot.readpotential(inp=sys.argv[1])
     else:
-        potential=readpotential(input('Give the file with the potential: '),r_units='angstrom')
-    r=np.array(potential[0],dtype=eval(numpy_precision))
-    Energies=np.array(potential[1],dtype=eval(numpy_precision))
-    mass=potential[2]
-    coordtypes=potential[3]
+        pot.readpotential(inp=input('Give the file with the potential: '))
+    r=np.array(pot.r,dtype=eval(numpy_precision))
+    Energies=np.array(pot.energy,dtype=eval(numpy_precision))
+    mass=pot.mass
+    coordtypes=pot.coordtypes
     """ Radial terminates with PiB walls; angular_2pi repeats; angular_pi terminates with PiB walls at 0 and pi"""
     coordtypedict={'radial': 'r', 'angular_2pi': 'phi', 'angular_pi': 'theta'}
     for x in range(len(coordtypes)):
@@ -460,7 +457,7 @@ def main():
 #        from timeit import Timer
 #        t = Timer(lambda: spline2dpot(pts,mass,coordtypes,Energies,r))
 #        print('time={0}'.format(t.timeit(number=1)))
-        mingrid=potential[4]
+        mingrid=pot.mingrid
         eigenval= spline2dpot(pts,mass,coordtypes,Energies,r,mingrid=mingrid)
     else:
         Ham=H_array(pts=pts,mass=mass,V=Energies,qmax=np.amax(r,axis=1),qmin=np.amin(r,axis=1),coordtype=coordtypes)
