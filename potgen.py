@@ -78,7 +78,8 @@ class q:
         vals=[]
         mini, maxi,minj,maxj =int(round(0.5*self.numpoints)),self.numpoints*5, int(round(0.5*q_other.numpoints)),q_other.numpoints*5
         if mingrid:
-            mini, maxi,minj,maxj =5,self.numpoints+1,5,q_other.numpoints+1
+            mini, maxi =min(21,int(self.numpoints*0.5)),self.numpoints+1,
+            minj, maxj =min(21,int(self.numpoints*0.5)),q_other.numpoints+1 
 #        print(self.maxval,self.minval,q_other.maxval,q_other.minval,self.numpoints,q_other.numpoints)
         if self.coordtype==0 and q_other.coordtype==0 and not forcegrid:
             """ modify grid of two radial coordinates to make mass weighting equal"""

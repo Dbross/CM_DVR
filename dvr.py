@@ -379,11 +379,11 @@ def spline2dpot(pts,mass,coordtypes,Energies,r,mingrid=False):
     rlen1=np.multiply(np.subtract(qmax1,qmin1),np.divide(np.add(float(pts[1]),1.0),np.subtract(float(pts[1]),1.0)))
     mw1=mwspace(coordtype=coordtypes[0],rlen=rlen0,mass=mass[0],pts=pts[0])
     mw2=mwspace(coordtype=coordtypes[1],rlen=rlen1,mass=mass[1],pts=pts[1])
-    if True:
-#    if np.abs(np.subtract(mw1,mw2))>1.0E-07 or mingrid:
+    if np.abs(np.subtract(mw1,mw2))>1.0E-07 or mingrid:
         print('Mass weighting unequal, adjusting grid\n OLD: {0:.4f}-{1:.4f} pts {2} {3:.4f}-{4:.4f} pts {5}'\
                 .format(qmin0,qmax0,pts[0],qmin1,qmax1,pts[1]))
         a=silentmweq([ [qmax0,qmin0,coordtypes[0],pts[0],mass[0]], [qmax1,qmin1,coordtypes[1],pts[1],mass[1]] ],mingrid=mingrid)
+        """ It is possible to override points and grid to be fit to here... Thinking about adding a manual option but unsure why I'd do that..."""
         qmax0,qmin0,pts[0]=np.max(a[0].grid),np.min(a[0].grid),a[0].numpoints
         qmax1,qmin1,pts[1]=np.max(a[1].grid),np.min(a[1].grid),a[1].numpoints
         from sys import exit
@@ -423,7 +423,7 @@ def spline2dpot(pts,mass,coordtypes,Energies,r,mingrid=False):
         Ham=H_array(pts=pts,mass=mass,V=Energies,qmax=np.amax(r,axis=1),qmin=np.amin(r,axis=1),coordtype=coordtypes)
     eigenval, eigenvec=np.linalg.eig(Ham)
 #    from scipy.sparse.linalg import eigs
-    """ Sparse solver doesn't work for high numbers of eigenvalues.... """
+    """ Sparse solver doesn't give speedup for computing eigenvalues of all solutions.... """
 #   eigenval, eigenvec=eigs(Ham,k=int((pts[0]*pts[1])-2),sigma=0,M=None,which='LM')
     Esort=np.sort(np.multiply(eigenval.real.astype(eval(numpy_precision)),hartreetocm))
 #    Etoprint=int(len(Esort))
