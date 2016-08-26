@@ -43,6 +43,7 @@ class potential:
         self.mass=[]
         self.pts=[]
         self.mingrid=False
+        self.harmonicfreq=[]
 
     def readpotential(self,inp):
         #potential should have coordinate and units as main input
@@ -90,6 +91,11 @@ class potential:
                             self.coordtypes.append(y)
                 elif 'mingrid' in x.lower():
                     self.mingrid=True
+                elif 'harmonic' in x.lower():
+                    self.harmonicfreq=rx.findall(x)
+                    print('Will adjust reduced mass to match harmonic frequencies of {0} cm-1.'.format(self.harmonicfreq))
+                    for x in range(len(self.harmonicfreq)):
+                        self.harmonicfreq[x]=float(self.harmonicfreq[x])/hartreetocm
                 elif 'angstrom' in x.lower():
                     print('reading potential as angstrom, this should only be set once.')
                     r_unitconversion=(1.0/bohr)
@@ -154,6 +160,10 @@ class potential:
         r=r_raw-np.min(xmin)
         Energies=Energies_raw-np.min(emin)
         Ener_spline=cubic1dspline(r[0],Energies)
+        if len(self.harmonicfreq)==1:
+            from scipy.interpolate import splev
+            mass=np.multiply(np.divide(splev(np.array([0.0]),Ener_spline,der=2),np.power(self.harmonicfreq,2)),np.divide(e_mass,amu)) 
+            print('Adjusted potential to use mass of {0} based on harmonic frequency.'.format(mass))
         xnew = np.linspace(min(r[0]),max(r[0]), num=num_points)
         vfit=return1dsplinevalue(Ener_spline,xnew)
         Ham=H_array(pts=pts,mass=mass,V=Energies,qmax=np.amax(r,axis=1),qmin=np.amin(r,axis=1),coordtype=coordtypes)
@@ -201,9 +211,27 @@ class potential:
         qmin1 =np.min(r[1]) 
         qmax1 =np.max(r[1]) 
         org=[qmin0,qmax0,qmin1,qmax1]
-        """ rlen here is (max-min) of potential, scaled to b-a by adding two more points!"""
+        """ rlen is (max-min) of potential, scaled to b-a by adding two more points!"""
         rlen0=np.multiply(np.subtract(qmax0,qmin0),np.divide(np.add(float(pts[0]),1.0),np.subtract(float(pts[0]),1.0)))
         rlen1=np.multiply(np.subtract(qmax1,qmin1),np.divide(np.add(float(pts[1]),1.0),np.subtract(float(pts[1]),1.0)))
+        if len(self.harmonicfreq)==2:
+            from scipy.interpolate import RectBivariateSpline, bisplev, bisplrep, spleval
+            cubic2dspline= RectBivariateSpline(np.unique(r[0]), np.unique(r[1]),  np.reshape(Energies,(pts[0],pts[1])))
+#            c2dspline= bisplrep(r[0], r[1],  Energies)
+#            print(bisplev(r[0][1],r[1][1],c2dspline,dx=1,dy=0))
+            grid_x, grid_y = np.mgrid[qmin0:qmax0:pts[0]*100j,qmin1:qmax1:pts[1]*100j]
+            derv=np.add(cubic2dspline.ev(grid_x,grid_y,dx=1),\
+                    cubic2dspline.ev(grid_x,grid_y,dy=1)).reshape(-1)
+            pos=np.argmin(np.abs(derv))
+            x,y =grid_x.reshape(-1)[pos],grid_y.reshape(-1)[pos]
+            hessx=cubic2dspline.ev(x,y,dx=2) # calculate the second partial derivitive for dq0 at abs(lowest calculated 1st derivitive) 
+            hessy=cubic2dspline.ev(x,y,dy=2) # calculate the second partial derivitive for dq1 at abs(lowest calculated 1st derivitive)
+            print('Hessians calculated as {0:.4e} dq0^2 {1:.4e} dq1^2.'.format(float(hessx),float(hessy)))
+#            plot2d(r[0],r[1],Energies)
+#            print(cubic2dspline.ev(r[0][1],r[1][1],dx=2,dy=2))
+            mass[0]=np.multiply(np.divide(hessx,np.power(self.harmonicfreq[0],2)),np.divide(e_mass,amu)) 
+            mass[1]=np.multiply(np.divide(hessy,np.power(self.harmonicfreq[1],2)),np.divide(e_mass,amu)) 
+            print('Adjusted potential to use mass of {0} based on harmonic frequencies.'.format(mass))
         mw1=mwspace(coordtype=coordtypes[0],rlen=rlen0,mass=mass[0],pts=pts[0])
         mw2=mwspace(coordtype=coordtypes[1],rlen=rlen1,mass=mass[1],pts=pts[1])
         if np.abs(np.subtract(mw1,mw2))>1.0E-07 or mingrid:
@@ -258,6 +286,27 @@ class potential:
         for x in range(Etoprint):
             print('{0:.{1}f}'.format(round(Esort[x],num_print_digits),num_print_digits))
         return eigenval 
+
+def plot2d(x,y,z,wavenumber=True,angular=False,levs=range(0,10000,100)):
+    import numpy as np
+#    import matplotlib
+    import matplotlib.mlab as ml
+    import matplotlib.pyplot as plt
+    if wavenumber:
+        z=z-np.min(z)
+        z=z*219474.6313717 
+    xlen=len(set(x))
+    ylen=len(set(y))
+    if angular:
+        x=(x*180/np.pi)
+        y=(y*180/np.pi)
+    xi=np.linspace(min(x),max(x),xlen)
+    yi=np.linspace(min(y),max(y),ylen)
+    zi=ml.griddata(x,y,z,xi,yi,interp='nn')
+    plt.figure()
+#    cp=plt.contour(xi,yi,zi,cmap=(plt.cm.gnuplot),origin='lower',levels=levs)
+    cp=plt.contourf(xi,yi,zi,cmap=(plt.cm.gnuplot),origin='lower',levels=levs)
+    plt.show()
 
 def H_array(pts=5,coordtype=['r'],mass=[0.5],qmin=[1.0],qmax=[2.0],V=[]):
     """ input 
