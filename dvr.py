@@ -82,7 +82,7 @@ class potential:
                         print('found multiple energy minimum {0} using {1} as minimum'.format(self.emin,min(self.emin)))
                         self.emin=min(self.emin)
                     else:
-                        self.emin=float(emin[0])
+                        self.emin=float(self.emin[0])
                     print('shifting energy minimum to {} a.u.'.format(self.emin))
                 elif types[0] in x.lower() or types[1] in x.lower() or types[2] in x.lower():
                     typelist=x.lower().replace(',',' ').split()
@@ -217,18 +217,18 @@ class potential:
         if len(self.harmonicfreq)==2:
             from scipy.interpolate import RectBivariateSpline, bisplev, bisplrep, spleval
             cubic2dspline= RectBivariateSpline(np.unique(r[0]), np.unique(r[1]),  np.reshape(Energies,(pts[0],pts[1])))
-#            c2dspline= bisplrep(r[0], r[1],  Energies)
-#            print(bisplev(r[0][1],r[1][1],c2dspline,dx=1,dy=0))
             grid_x, grid_y = np.mgrid[qmin0:qmax0:pts[0]*100j,qmin1:qmax1:pts[1]*100j]
             derv=np.add(cubic2dspline.ev(grid_x,grid_y,dx=1),\
                     cubic2dspline.ev(grid_x,grid_y,dy=1)).reshape(-1)
+            truederiv=np.add(np.multiply(r[0],2.0),np.multiply(r[1],2.0))
+#            plot2d(r[0],r[1],truederiv,norm=True)
+#            plot2d(grid_x.reshape(-1),grid_y.reshape(-1),derv,norm=True)
+#            plot2d(r[0],r[1],Energies,wavenumber=True,block=True)
             pos=np.argmin(np.abs(derv))
             x,y =grid_x.reshape(-1)[pos],grid_y.reshape(-1)[pos]
             hessx=cubic2dspline.ev(x,y,dx=2) # calculate the second partial derivitive for dq0 at abs(lowest calculated 1st derivitive) 
             hessy=cubic2dspline.ev(x,y,dy=2) # calculate the second partial derivitive for dq1 at abs(lowest calculated 1st derivitive)
             print('Hessians calculated as {0:.4e} dq0^2 {1:.4e} dq1^2.'.format(float(hessx),float(hessy)))
-#            plot2d(r[0],r[1],Energies)
-#            print(cubic2dspline.ev(r[0][1],r[1][1],dx=2,dy=2))
             mass[0]=np.multiply(np.divide(hessx,np.power(self.harmonicfreq[0],2)),np.divide(e_mass,amu)) 
             mass[1]=np.multiply(np.divide(hessy,np.power(self.harmonicfreq[1],2)),np.divide(e_mass,amu)) 
             print('Adjusted potential to use mass of {0} based on harmonic frequencies.'.format(mass))
@@ -268,13 +268,12 @@ class potential:
             vfit= griddata(np.transpose(np.array(r)),Energies,(grid_x,grid_y),method='cubic')
             if np.any(np.isnan(vfit)):
                 exit('fit potential outside bounds')
-            mass= roundmasstoequal(mass=mass,sigfigs=sigfigs,dq1=np.divide(mw1,mass[0]),dq2=np.divide(mw2,mass[1]))
-            print('using {1} sig figs of reduced mass of {0} amu.'.format(mass,sigfigs))
+#            mass= roundmasstoequal(mass=mass,sigfigs=sigfigs,dq1=np.divide(mw1,mass[0]),dq2=np.divide(mw2,mass[1]))
+            print('using {2} sig figs of reduced mass of [{0:.{3}e}, {1:.{3}e}] amu.'.format(float(mass[0]),float(mass[1]),sigfigs,sigfigs-1))
             Ham=H_array(pts=pts,mass=mass,V=np.ndarray.flatten(vfit),qmax=[qmax0,qmax1],qmin=[qmin0,qmin1],coordtype=coordtypes)
         else:   
-            mass= roundmasstoequal(mass=mass,sigfigs=sigfigs,dq1=np.divide(mw1,mass[0]),dq2=np.divide(mw2,mass[1]))
-            print('using {1} sig figs of reduced mass of {0} amu.'.format(mass,sigfigs))
-            print('using reduced mass of {0} amu.'.format(mass))
+#            mass= roundmasstoequal(mass=mass,sigfigs=sigfigs,dq1=np.divide(mw1,mass[0]),dq2=np.divide(mw2,mass[1]))
+            print('using {2} sig figs of reduced mass of [{0:.{3}e}, {1:.{3}e}] amu.'.format(float(mass[0]),float(mass[1]),sigfigs,sigfigs-1))
             Ham=H_array(pts=pts,mass=mass,V=Energies,qmax=np.amax(r,axis=1),qmin=np.amin(r,axis=1),coordtype=coordtypes)
         eigenval, eigenvec=np.linalg.eig(Ham)
 #        from scipy.sparse.linalg import eigs
@@ -283,18 +282,27 @@ class potential:
         Esort=np.sort(np.multiply(eigenval.real.astype(eval(numpy_precision)),hartreetocm))
 #        Etoprint=int(len(Esort))
         Etoprint=int(len(Esort)/2)
+#        plot2d(r[0],r[1],Energies,wavenumber=True,block=True)
+#        plot2d(r[0],r[1],eigenvec[0],norm=True)
+#        plot2d(r[0],r[1],eigenvec[1],norm=True)
+#        plot2d(r[0],r[1],eigenvec[2],norm=True)
+#        plot2d(r[0],r[1],eigenvec[3],norm=True,block=True)
         for x in range(Etoprint):
             print('{0:.{1}f}'.format(round(Esort[x],num_print_digits),num_print_digits))
         return eigenval 
 
-def plot2d(x,y,z,wavenumber=True,angular=False,levs=range(0,10000,100)):
+def plot2d(x,y,z,wavenumber=False,angular=False,norm=False,block=False):
     import numpy as np
 #    import matplotlib
     import matplotlib.mlab as ml
     import matplotlib.pyplot as plt
     if wavenumber:
-        z=z-np.min(z)
+        z=np.subtract(z,np.min(z))
         z=z*219474.6313717 
+        levs=range(0,10000,100)
+    if norm:
+        z=np.divide(z,np.subtract(np.max(z),np.min(z)))
+        levs=np.linspace(float(np.min(z)),float(np.max(z)),100)
     xlen=len(set(x))
     ylen=len(set(y))
     if angular:
@@ -306,7 +314,7 @@ def plot2d(x,y,z,wavenumber=True,angular=False,levs=range(0,10000,100)):
     plt.figure()
 #    cp=plt.contour(xi,yi,zi,cmap=(plt.cm.gnuplot),origin='lower',levels=levs)
     cp=plt.contourf(xi,yi,zi,cmap=(plt.cm.gnuplot),origin='lower',levels=levs)
-    plt.show()
+    plt.show(block=block)
 
 def H_array(pts=5,coordtype=['r'],mass=[0.5],qmin=[1.0],qmax=[2.0],V=[]):
     """ input 
@@ -346,7 +354,7 @@ def H_array(pts=5,coordtype=['r'],mass=[0.5],qmin=[1.0],qmax=[2.0],V=[]):
         if np.abs(np.subtract(mw1,mw2))>1.0E-07:
             from sys import exit
             print('mass weighted coordinate spacing unequal as specified, stopping DVR')
-            exit()
+            exit('mass weighted coordinate spacing unequal as specified, stopping DVR')
         if np.less(pts[0],255) and np.less(pts[1],255):
             inttype='np.uint8'
         else:
