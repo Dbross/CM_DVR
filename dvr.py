@@ -12,7 +12,7 @@ def constants(CODATA_year=2010):
     numpy_precision="np.float64"
     num_points=101
     num_print_digits=3
-    plotit=False
+    plotit=True
     global planckconstant, light_speed, Rydberg, electron_charge, amu, bohr, e_mass, hartreetocm
     light_speed= 299792458 # m/s
     if CODATA_year==2010:
@@ -168,7 +168,9 @@ class potential:
         vfit=return1dsplinevalue(Ener_spline,xnew)
         Ham=H_array(pts=pts,mass=mass,V=Energies,qmax=np.amax(r,axis=1),qmin=np.amin(r,axis=1),coordtype=coordtypes)
         eigenval, eigenvec=np.linalg.eig(Ham)
-        Esort=np.sort(eigenval*hartreetocm)
+        eindex=np.argsort(eigenval)
+        eigenval, eigenvec= eigenval[eindex], np.transpose(eigenvec[:,eindex])
+        Esort=(eigenval*hartreetocm)
 #     plotting stuff 
         Etoprint=int(len(Esort)/2)
         if plotit:
@@ -195,12 +197,24 @@ class potential:
 #        plt.legend(['Points', 'Cubic Spline'])
             plt.title('Cubic-spline interpolation')
             plt.axis()
-            plt.show()
+            plt.show(block=False)
+            plt.figure()
+            plt.title('ground state')
+            plt.plot(r[0],Energies/np.max(Energies))
+            plt.plot(r[0],np.square(eigenvec[0]),marker='o')
+            plt.plot(r[0],eigenvec[0],marker='x')
+            plt.show(block=False)
+            plt.figure()
+            plt.title('v=1 state')
+            plt.plot(r[0],Energies/np.max(Energies))
+            plt.plot(r[0],eigenvec[1],marker='o')
+            plt.plot(r[0],np.square(eigenvec[1]),marker='x')
+            plt.show(block=True)
         for x in range(Etoprint):
             print('{0:.{1}f}'.format(round(Esort[x],num_print_digits),num_print_digits))
         return eigenval 
 
-    def spline2dpot(self,pts,mass,coordtypes,Energies,r,mingrid=False):
+    def spline2dpot(self,pts,mass,coordtypes,Energies,r,mingrid=False,saveeigen=True):
         import numpy as np
         from scipy.interpolate import griddata
 #        from scipy.interpolate import RectBivariateSpline
@@ -235,6 +249,7 @@ class potential:
         mw1=mwspace(coordtype=coordtypes[0],rlen=rlen0,mass=mass[0],pts=pts[0])
         mw2=mwspace(coordtype=coordtypes[1],rlen=rlen1,mass=mass[1],pts=pts[1])
         if np.abs(np.subtract(mw1,mw2))>1.0E-07 or mingrid:
+            """ Adjust potential to have equal massweighted spacing"""
             print('Mass weighting unequal, adjusting grid\n OLD: {0:.4f}-{1:.4f} pts {2} {3:.4f}-{4:.4f} pts {5}'\
                     .format(qmin0,qmax0,pts[0],qmin1,qmax1,pts[1]))
             a=silentmweq([ [qmax0,qmin0,coordtypes[0],pts[0],mass[0]], [qmax1,qmin1,coordtypes[1],pts[1],mass[1]] ],mingrid=mingrid)
@@ -276,32 +291,115 @@ class potential:
             print('using {2} sig figs of reduced mass of [{0:.{3}e}, {1:.{3}e}] amu.'.format(float(mass[0]),float(mass[1]),sigfigs,sigfigs-1))
             Ham=H_array(pts=pts,mass=mass,V=Energies,qmax=np.amax(r,axis=1),qmin=np.amin(r,axis=1),coordtype=coordtypes)
         eigenval, eigenvec=np.linalg.eig(Ham)
+        eigenval=eigenval.real.astype(eval(numpy_precision))
+        eindex=np.argsort(eigenval)
+        eigenval, eigenvec= eigenval[eindex], np.transpose(eigenvec[:,eindex])
 #        from scipy.sparse.linalg import eigs
         """ Sparse solver doesn't give speedup for computing eigenvalues of all solutions.... """
 #       eigenval, eigenvec=eigs(Ham,k=int((pts[0]*pts[1])-2),sigma=0,M=None,which='LM')
-        Esort=np.sort(np.multiply(eigenval.real.astype(eval(numpy_precision)),hartreetocm))
+        Esort=np.multiply(eigenval,hartreetocm)
 #        Etoprint=int(len(Esort))
         Etoprint=int(len(Esort)/2)
-#        plot2d(r[0],r[1],Energies,wavenumber=True,block=True)
-#        plot2d(r[0],r[1],eigenvec[0],norm=True)
-#        plot2d(r[0],r[1],eigenvec[1],norm=True)
-#        plot2d(r[0],r[1],eigenvec[2],norm=True)
-#        plot2d(r[0],r[1],eigenvec[3],norm=True,block=True)
+# this plots the 2d grid, incase you'd like to see which point corresponds to which coordinate
+#        import matplotlib.pyplot as plt
+#        plt.figure()
+#        plt.plot(r[0],r[1],linestyle='none',marker='o')
+#        labels=['{0}'.format(i) for i in range(len(r[0]))]
+#        for label, x,y in zip(labels,r[0,:],r[1,:]): 
+#            plt.annotate(label,
+#                    xy= (x,y), xytext = (-5,5),
+#                    textcoords= 'offset points', ha='right', va='bottom')
+##                    ,bbox=dict(boxstyle='round,pad=0.5',fc='yellow',alpha=0.5))
+##                    ,arrowprops=dict(arrowstyle ='->',connectionstyle='arc3,rad=0'))
+        if plotit:
+            if saveeigen:
+                eigfile='tmp.eig.npz'
+                from os.path import isfile
+                if isfile(eigfile):
+                    if 'y' not in input('outfile (tmp.eig) exists, overwrite? [y,N]').lower():
+                        saveeigen=False
+                if saveeigen:
+                    if np.abs(np.subtract(mw1,mw2))>1.0E-07 or mingrid:
+                        gridx, gridy, pot = np.ravel(grid_x),np.ravel(grid_y),eigenvec
+                    else:
+                        gridx, gridy = np.array(r[0],dtype=eval(numpy_precision)), np.array(r[1],dtype=eval(numpy_precision)) 
+                        pot= np.array(Energies,dtype=eval(numpy_precision)) 
+                    np.savez(eigfile,gridx=gridx,gridy=gridy,pot=pot,eigenvec=eigenvec,eigenval=eigenval)
+            if np.abs(np.subtract(mw1,mw2))>1.0E-07 or mingrid:
+                plot2dgrid(grid_x,grid_y,vfit,wavenumber=True,title='Potential Energy Contours')
+                eigenvectoplot=(int(input('number of eigenvectors to plot:')))
+                if eigenvectoplot>0:
+                    for i in range(eigenvectoplot):
+                        if i==eigenvectoplot-1:
+                            plot2d(np.ndarray.flatten(grid_x),np.ndarray.flatten(grid_y),np.square(eigenvec[i]),title='eigenvec {0} with energy {1:.3f}'.format(i,Esort[i]),block=True)
+                        else:
+                            plot2d(np.ndarray.flatten(grid_x),np.ndarray.flatten(grid_y),np.square(eigenvec[i]),title='eigenvec {0} with energy {1:.3f}'.format(i,Esort[i]),block=False)
+            else:
+                plot2d(r[0],r[1],Energies,wavenumber=True,title='Potential Energy Contours')
+                eigenvectoplot=(int(input('number of eigenvectors to plot:')))
+                if eigenvectoplot>0:
+                    for i in range(eigenvectoplot):
+                        if i==eigenvectoplot-1:
+                            plot2d(r[0],r[1],np.square(eigenvec[i]),title='eigenvec {0} with energy {1:.3f}'.format(i,Esort[i]),block=True)
+                        else:
+                            plot2d(r[0],r[1],np.square(eigenvec[i]),title='eigenvec {0} with energy {1:.3f}'.format(i,Esort[i]))
         for x in range(Etoprint):
             print('{0:.{1}f}'.format(round(Esort[x],num_print_digits),num_print_digits))
         return eigenval 
 
-def plot2d(x,y,z,wavenumber=False,angular=False,norm=False,block=False):
+def loadeigen(eigfile='tmp.eig.npz'):
     import numpy as np
-#    import matplotlib
-    import matplotlib.mlab as ml
+    data=np.load(eigfile)
+    x=data['gridx']
+    y=data['gridy']
+    z=data['pot']
+    eigenvec=data['eigenvec']
+    eigenval=data['eigenval']
+    Esort=np.multiply(eigenval,hartreetocm)
+    plot2d(x,y,z,wavenumber=True,title='Potential Energy Contours')
+    eigenvectoplot=(int(input('number of eigenvectors to plot:')))
+    if eigenvectoplot>0:
+        for i in range(eigenvectoplot):
+            if i==eigenvectoplot-1:
+                plot2d(x,y,np.square(eigenvec[i]),title='eigenvec {0} with energy {1:.3f}'.format(i,Esort[i]),block=True)
+            else:
+                plot2d(x,y,np.square(eigenvec[i]),title='eigenvec {0} with energy {1:.3f}'.format(i,Esort[i]),block=False)
+
+def plot2dgrid(x,y,z,wavenumber=False,angular=False,norm=False,block=False,legend=True,title='2d filled contour plot'):
+    """ 2d grids in with their corresponding z, e.g. np.shape (x_dim_len,y_dim_len) for x, y, and z"""
+    import numpy as np
     import matplotlib.pyplot as plt
+    if norm:
+        z=np.divide(z,np.subtract(np.amax(z),np.amin(z)))
     if wavenumber:
         z=np.subtract(z,np.min(z))
         z=z*219474.6313717 
         levs=range(0,10000,100)
+    else:
+        levs=np.linspace(float(np.amin(z)),float(np.amax(z)),100)
+    plt.figure()
+    cp=plt.contourf(x,y,z,cmap=(plt.cm.gnuplot),origin='lower',levels=levs)
+    plt.title(title)
+    if legend:
+        CB = plt.colorbar(cp, shrink=0.8, extend='both')
+        l, b, w, h = plt.gca().get_position().bounds
+        ll, bb, ww, hh = CB.ax.get_position().bounds
+        CB.ax.set_position([ll, b + 0.1*h, ww, h*0.8])
+    plt.show(block=block)
+
+def plot2d(x,y,z,wavenumber=False,angular=False,norm=False,block=False,legend=True,title='2d filled contour plot'):
+    """ Flat x,y,z as input"""
+    import numpy as np
+#    import matplotlib
+    import matplotlib.mlab as ml
+    import matplotlib.pyplot as plt
     if norm:
         z=np.divide(z,np.subtract(np.max(z),np.min(z)))
+    if wavenumber:
+        z=np.subtract(z,np.min(z))
+        z=z*219474.6313717 
+        levs=range(0,10000,100)
+    else:
         levs=np.linspace(float(np.min(z)),float(np.max(z)),100)
     xlen=len(set(x))
     ylen=len(set(y))
@@ -314,6 +412,13 @@ def plot2d(x,y,z,wavenumber=False,angular=False,norm=False,block=False):
     plt.figure()
 #    cp=plt.contour(xi,yi,zi,cmap=(plt.cm.gnuplot),origin='lower',levels=levs)
     cp=plt.contourf(xi,yi,zi,cmap=(plt.cm.gnuplot),origin='lower',levels=levs)
+    plt.title(title)
+    if legend:
+        CB = plt.colorbar(cp, shrink=0.8, extend='both')
+#        CB = plt.colorbar(cp, orientation='horizontal', shrink=0.8)
+        l, b, w, h = plt.gca().get_position().bounds
+        ll, bb, ww, hh = CB.ax.get_position().bounds
+        CB.ax.set_position([ll, b + 0.1*h, ww, h*0.8])
     plt.show(block=block)
 
 def H_array(pts=5,coordtype=['r'],mass=[0.5],qmin=[1.0],qmax=[2.0],V=[]):
@@ -390,7 +495,7 @@ def H_array(pts=5,coordtype=['r'],mass=[0.5],qmin=[1.0],qmax=[2.0],V=[]):
                     it[0]=D2[indices[1,it.index],indices[2,it.index]]
             elif np.equal(indices[1,it.index],indices[2,it.index] ): 
                 it[0]=D1[indices[0,it.index],indices[3,it.index]]
-                for i in range(pts[1]-1-indices[1,it.index]):
+                for i in range(pts[1]-1-np.squeeze(indices[1,it.index])):
                     it.iternext()
             it.iternext()
     else:
@@ -517,12 +622,16 @@ def main():
     constants(CODATA_year=2010)
     import numpy as np
     import sys
-    pot=potential()
-    if len(sys.argv)>1:
-        pot.readpotential(inp=sys.argv[1])
+    """ overloaded call... I may split this out later"""
+    if len(sys.argv)>1 and 'npz' in sys.argv[1]:
+        loadeigen(eigfile=sys.argv[1])
     else:
-        pot.readpotential(inp=input('Give the file with the potential: '))
-    pot.solve()
+        pot=potential()
+        if len(sys.argv)>1:
+            pot.readpotential(inp=sys.argv[1])
+        else:
+            pot.readpotential(inp=input('Give the file with the potential: '))
+        pot.solve()
 
 # jacobian stuff
 #    A = array([[2.0,1.0],[5.0,7.0]])
