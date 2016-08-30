@@ -332,7 +332,6 @@ class potential:
                     f.create_dataset('eigenvec',data=eigenvec)
                     f.create_dataset('eigenval',data=eigenval)
                     f.close()
-#                    np.savez(eigfile,gridx=gridx,gridy=gridy,pot=pot,eigenvec=eigenvec,eigenval=eigenval)
             if np.abs(np.subtract(mw1,mw2))>1.0E-07 or mingrid:
                 plot2dgrid(grid_x,grid_y,vfit,wavenumber=True,title='Potential Energy Contours')
                 eigenvectoplot=(int(input('number of eigenvectors to plot:')))
@@ -364,12 +363,6 @@ def loadeigen(eigfile='tmp.eig.h5'):
     z=data['z'][:]
     eigenvec=data['eigenvec'][:]
     eigenval=data['eigenval'][:]
-#    data=np.load(eigfile)
-#    x=data['gridx']
-#    y=data['gridy']
-#    z=data['pot']
-#    eigenvec=data['eigenvec']
-#    eigenval=data['eigenval']
     Esort=np.multiply(eigenval,hartreetocm)
     plot2d(x,y,z,wavenumber=True,title='Potential Energy Contours')
     eigenvectoplot=(int(input('number of eigenvectors to plot:')))
