@@ -12,7 +12,7 @@ def constants(CODATA_year=2010):
     numpy_precision="np.float64"
     num_points=101
     num_print_digits=3
-    plotit=True
+    plotit=False
     global planckconstant, light_speed, Rydberg, electron_charge, amu, bohr, e_mass, hartreetocm
     light_speed= 299792458 # m/s
     if CODATA_year==2010:
@@ -44,6 +44,8 @@ class potential:
         self.pts=[]
         self.mingrid=False
         self.harmonicfreq=[]
+        self.fiteignum=[]
+        self.fiteigval=[]
 
     def readpotential(self,inp):
         #potential should have coordinate and units as main input
@@ -91,6 +93,14 @@ class potential:
                             self.coordtypes.append(y)
                 elif 'mingrid' in x.lower():
                     self.mingrid=True
+                elif 'fiteigval' in x.lower():
+                    self.fiteigval=rx.findall(x)
+                    for x in range(len(self.fiteigval)):
+                        self.fiteigval[x]=float(self.fiteigval[x])
+                elif 'fiteignum' in x.lower():
+                    self.fiteignum=re.findall(r'\b\d+\b', x)
+                    for x in range(len(self.fiteignum)):
+                        self.fiteignum[x]=int(self.fiteignum[x])
                 elif 'harmonic' in x.lower():
                     self.harmonicfreq=rx.findall(x)
                     print('Will adjust reduced mass to match harmonic frequencies of {0} cm-1.'.format(self.harmonicfreq))
@@ -115,12 +125,12 @@ class potential:
         for i in range(len(r[0])):
             rtmp=[r[j][i] for j in range(len(r))]
             self.r.append(rtmp)
-        if len(self.mass)!=len(self.coordtypes):
-            print('{0} masses given and {1} coordinate types give'.format(len(mass),len(coordtypes)))
+        if len(self.fiteignum)!=len(self.fiteigval):
+            print('{0} eigenvalues to be fit given and {1} assignments given for them'.format(len(self.fiteigval),len(self.fiteignum)))
             from sys import exit
             exit()
         if len(self.mass)!=len(self.coordtypes):
-            print('{0} masses given and {1} coordinate types give'.format(len(mass),len(coordtypes)))
+            print('{0} masses given and {1} coordinate types give'.format(len(self.mass),len(self.coordtypes)))
             from sys import exit
             exit()
         import numpy as np
@@ -132,7 +142,6 @@ class potential:
             self.coordtypes[x]=coordtypedict[self.coordtypes[x]]
         for x in range(len(self.r)):
             self.pts.append(len(np.unique(self.r[x])))
-#        return (self.r,self.energy, self.mass, self.coordtypes,self.mingrid)
 
     def solve(self):
         if len(self.coordtypes)==1:
@@ -171,7 +180,6 @@ class potential:
         eindex=np.argsort(eigenval)
         eigenval, eigenvec= eigenval[eindex], np.transpose(eigenvec[:,eindex])
         Esort=(eigenval*hartreetocm)
-#     plotting stuff 
         Etoprint=int(len(Esort)/2)
         if plotit:
             vfitcm=vfit*hartreetocm
@@ -217,7 +225,6 @@ class potential:
     def spline2dpot(self,pts,mass,coordtypes,Energies,r,mingrid=False,saveeigen=True):
         import numpy as np
         from scipy.interpolate import griddata
-#        from scipy.interpolate import RectBivariateSpline
         from potgen import silentmweq, roundmasstoequal
         sigfigs=4
         qmin0 =np.min(r[0]) 
@@ -232,17 +239,15 @@ class potential:
             from scipy.interpolate import RectBivariateSpline, bisplev, bisplrep, spleval
             cubic2dspline= RectBivariateSpline(np.unique(r[0]), np.unique(r[1]),  np.reshape(Energies,(pts[0],pts[1])))
             grid_x, grid_y = np.mgrid[qmin0:qmax0:pts[0]*100j,qmin1:qmax1:pts[1]*100j]
-            derv=np.add(cubic2dspline.ev(grid_x,grid_y,dx=1),\
-                    cubic2dspline.ev(grid_x,grid_y,dy=1)).reshape(-1)
-            truederiv=np.add(np.multiply(r[0],2.0),np.multiply(r[1],2.0))
-#            plot2d(r[0],r[1],truederiv,norm=True)
+            derv=np.add(np.abs(cubic2dspline.ev(grid_x,grid_y,dx=1)),\
+                    np.abs(cubic2dspline.ev(grid_x,grid_y,dy=1))).reshape(-1)
 #            plot2d(grid_x.reshape(-1),grid_y.reshape(-1),derv,norm=True)
-#            plot2d(r[0],r[1],Energies,wavenumber=True,block=True)
             pos=np.argmin(np.abs(derv))
             x,y =grid_x.reshape(-1)[pos],grid_y.reshape(-1)[pos]
+#            np.set_printoptions(suppress=False,threshold=np.nan,linewidth=np.nan)
             hessx=cubic2dspline.ev(x,y,dx=2) # calculate the second partial derivitive for dq0 at abs(lowest calculated 1st derivitive) 
             hessy=cubic2dspline.ev(x,y,dy=2) # calculate the second partial derivitive for dq1 at abs(lowest calculated 1st derivitive)
-            print('Hessians calculated as {0:.4e} dq0^2 {1:.4e} dq1^2.'.format(float(hessx),float(hessy)))
+            print('Hessians calculated at {2:.4e}, {3:.4e} as {0:.4e} dq0^2 {1:.4e} dq1^2.'.format(float(hessx),float(hessy),float(x),float(y)))
             mass[0]=np.multiply(np.divide(hessx,np.power(self.harmonicfreq[0],2)),np.divide(e_mass,amu)) 
             mass[1]=np.multiply(np.divide(hessy,np.power(self.harmonicfreq[1],2)),np.divide(e_mass,amu)) 
             print('Adjusted potential to use mass of {0} based on harmonic frequencies.'.format(mass))
@@ -284,11 +289,11 @@ class potential:
             if np.any(np.isnan(vfit)):
                 exit('fit potential outside bounds')
 #            mass= roundmasstoequal(mass=mass,sigfigs=sigfigs,dq1=np.divide(mw1,mass[0]),dq2=np.divide(mw2,mass[1]))
-            print('using {2} sig figs of reduced mass of [{0:.{3}e}, {1:.{3}e}] amu.'.format(float(mass[0]),float(mass[1]),sigfigs,sigfigs-1))
+#            print('using {2} sig figs of reduced mass of [{0:.{3}e}, {1:.{3}e}] amu.'.format(float(mass[0]),float(mass[1]),sigfigs,sigfigs-1))
             Ham=H_array(pts=pts,mass=mass,V=np.ndarray.flatten(vfit),qmax=[qmax0,qmax1],qmin=[qmin0,qmin1],coordtype=coordtypes)
         else:   
 #            mass= roundmasstoequal(mass=mass,sigfigs=sigfigs,dq1=np.divide(mw1,mass[0]),dq2=np.divide(mw2,mass[1]))
-            print('using {2} sig figs of reduced mass of [{0:.{3}e}, {1:.{3}e}] amu.'.format(float(mass[0]),float(mass[1]),sigfigs,sigfigs-1))
+#            print('using {2} sig figs of reduced mass of [{0:.{3}e}, {1:.{3}e}] amu.'.format(float(mass[0]),float(mass[1]),sigfigs,sigfigs-1))
             Ham=H_array(pts=pts,mass=mass,V=Energies,qmax=np.amax(r,axis=1),qmin=np.amin(r,axis=1),coordtype=coordtypes)
         eigenval, eigenvec=np.linalg.eig(Ham)
         eigenval=eigenval.real.astype(eval(numpy_precision))
@@ -311,36 +316,38 @@ class potential:
 #                    textcoords= 'offset points', ha='right', va='bottom')
 ##                    ,bbox=dict(boxstyle='round,pad=0.5',fc='yellow',alpha=0.5))
 ##                    ,arrowprops=dict(arrowstyle ='->',connectionstyle='arc3,rad=0'))
-        if plotit:
+        if saveeigen:
+            eigfile='tmp.eig.h5'
+            from os.path import isfile
+            if isfile(eigfile):
+                if 'y' not in input('outfile (tmp.eig) exists, overwrite? [y,N]').lower():
+                    saveeigen=False
             if saveeigen:
-                eigfile='tmp.eig.h5'
-                from os.path import isfile
-                if isfile(eigfile):
-                    if 'y' not in input('outfile (tmp.eig) exists, overwrite? [y,N]').lower():
-                        saveeigen=False
-                if saveeigen:
-                    if np.abs(np.subtract(mw1,mw2))>1.0E-07 or mingrid:
-                        gridx, gridy, pot = np.ravel(grid_x),np.ravel(grid_y),np.ravel(vfit)
-                    else:
-                        gridx, gridy = np.array(r[0],dtype=eval(numpy_precision)), np.array(r[1],dtype=eval(numpy_precision)) 
-                        pot= np.array(Energies,dtype=eval(numpy_precision)) 
-                    import h5py
-                    f = h5py.File(eigfile,'w')
-                    f.create_dataset('x',data=gridx)
-                    f.create_dataset('y',data=gridy)
-                    f.create_dataset('z',data=pot)
-                    f.create_dataset('eigenvec',data=eigenvec)
-                    f.create_dataset('eigenval',data=eigenval)
-                    f.close()
+                if np.abs(np.subtract(mw1,mw2))>1.0E-07 or mingrid:
+                    gridx, gridy, pot = np.ravel(grid_x),np.ravel(grid_y),np.ravel(vfit)
+                else:
+                    gridx, gridy = np.array(r[0],dtype=eval(numpy_precision)), np.array(r[1],dtype=eval(numpy_precision)) 
+                    pot= np.array(Energies,dtype=eval(numpy_precision)) 
+                import h5py
+                f = h5py.File(eigfile,'w')
+                f.create_dataset('x',data=gridx)
+                f.create_dataset('y',data=gridy)
+                f.create_dataset('z',data=pot)
+                f.create_dataset('eigenvec',data=eigenvec)
+                f.create_dataset('eigenval',data=eigenval)
+                f.close()
+        if plotit:
             if np.abs(np.subtract(mw1,mw2))>1.0E-07 or mingrid:
                 plot2dgrid(grid_x,grid_y,vfit,wavenumber=True,title='Potential Energy Contours')
                 eigenvectoplot=(int(input('number of eigenvectors to plot:')))
                 if eigenvectoplot>0:
                     for i in range(eigenvectoplot):
                         if i==eigenvectoplot-1:
-                            plot2d(np.ndarray.flatten(grid_x),np.ndarray.flatten(grid_y),np.square(eigenvec[i]),title='eigenvec {0} with energy {1:.3f}'.format(i,Esort[i]),block=True)
+                            plot2d(np.ndarray.flatten(grid_x),np.ndarray.flatten(grid_y),np.square(eigenvec[i]),\
+                                    title='eigenvec {0} with energy {1:.3f}'.format(i,Esort[i]),block=True)
                         else:
-                            plot2d(np.ndarray.flatten(grid_x),np.ndarray.flatten(grid_y),np.square(eigenvec[i]),title='eigenvec {0} with energy {1:.3f}'.format(i,Esort[i]),block=False)
+                            plot2d(np.ndarray.flatten(grid_x),np.ndarray.flatten(grid_y),np.square(eigenvec[i]),\
+                                    title='eigenvec {0} with energy {1:.3f}'.format(i,Esort[i]),block=False)
             else:
                 plot2d(r[0],r[1],Energies,wavenumber=True,title='Potential Energy Contours')
                 eigenvectoplot=(int(input('number of eigenvectors to plot:')))
@@ -357,6 +364,7 @@ class potential:
 def loadeigen(eigfile='tmp.eig.h5'):
     import numpy as np
     import h5py
+    eigbase=eigfile.split('.')[0]
     data=h5py.File(eigfile,'r')
     x=data['x'][:]
     y=data['y'][:]
@@ -364,14 +372,14 @@ def loadeigen(eigfile='tmp.eig.h5'):
     eigenvec=data['eigenvec'][:]
     eigenval=data['eigenval'][:]
     Esort=np.multiply(eigenval,hartreetocm)
-    plot2d(x,y,z,wavenumber=True,title='Potential Energy Contours',save='tmp.pot.pdf')
+    plot2d(x,y,z,wavenumber=True,title='Potential Energy Contours',save=eigbase+'.pot.pdf')
     eigenvectoplot=(int(input('number of eigenvectors to plot:')))
     if eigenvectoplot>0:
         for i in range(eigenvectoplot):
             if i==eigenvectoplot-1:
-                plot2d(x,y,np.square(eigenvec[i]),title='eigenvec {0} with energy {1:.3f}'.format(i,Esort[i]),save='tmpeig.'+str(i)+'.pdf')
+                plot2d(x,y,np.square(eigenvec[i]),title='eigenvec {0} with energy {1:.3f}'.format(i,Esort[i]),save=eigbase+'.eig.'+str(i)+'.pdf')
             else:
-                plot2d(x,y,np.square(eigenvec[i]),title='eigenvec {0} with energy {1:.3f}'.format(i,Esort[i]),save='tmpeig.'+str(i)+'.pdf')
+                plot2d(x,y,np.square(eigenvec[i]),title='eigenvec {0} with energy {1:.3f}'.format(i,Esort[i]),save=eigbase+'.eig.'+str(i)+'.pdf')
 
 def plot2dgrid(x,y,z,wavenumber=False,angular=False,norm=False,block=False,legend=True,title='2d filled contour plot',save='tmp.pdf'):
     """ 2d grids in with their corresponding z, e.g. np.shape (x_dim_len,y_dim_len) for x, y, and z"""
@@ -401,7 +409,6 @@ def plot2dgrid(x,y,z,wavenumber=False,angular=False,norm=False,block=False,legen
 def plot2d(x,y,z,wavenumber=False,angular=False,norm=False,block=False,legend=True,title='2d filled contour plot',save='tmp.pdf'):
     """ Flat x,y,z as input"""
     import numpy as np
-#    import matplotlib
     import matplotlib.mlab as ml
     import matplotlib.pyplot as plt
     if norm:
