@@ -313,18 +313,26 @@ class potential:
 ##                    ,arrowprops=dict(arrowstyle ='->',connectionstyle='arc3,rad=0'))
         if plotit:
             if saveeigen:
-                eigfile='tmp.eig.npz'
+                eigfile='tmp.eig.h5'
                 from os.path import isfile
                 if isfile(eigfile):
                     if 'y' not in input('outfile (tmp.eig) exists, overwrite? [y,N]').lower():
                         saveeigen=False
                 if saveeigen:
                     if np.abs(np.subtract(mw1,mw2))>1.0E-07 or mingrid:
-                        gridx, gridy, pot = np.ravel(grid_x),np.ravel(grid_y),eigenvec
+                        gridx, gridy, pot = np.ravel(grid_x),np.ravel(grid_y),np.ravel(vfit)
                     else:
                         gridx, gridy = np.array(r[0],dtype=eval(numpy_precision)), np.array(r[1],dtype=eval(numpy_precision)) 
                         pot= np.array(Energies,dtype=eval(numpy_precision)) 
-                    np.savez(eigfile,gridx=gridx,gridy=gridy,pot=pot,eigenvec=eigenvec,eigenval=eigenval)
+                    import h5py
+                    f = h5py.File(eigfile,'w')
+                    f.create_dataset('x',data=gridx)
+                    f.create_dataset('y',data=gridy)
+                    f.create_dataset('z',data=pot)
+                    f.create_dataset('eigenvec',data=eigenvec)
+                    f.create_dataset('eigenval',data=eigenval)
+                    f.close()
+#                    np.savez(eigfile,gridx=gridx,gridy=gridy,pot=pot,eigenvec=eigenvec,eigenval=eigenval)
             if np.abs(np.subtract(mw1,mw2))>1.0E-07 or mingrid:
                 plot2dgrid(grid_x,grid_y,vfit,wavenumber=True,title='Potential Energy Contours')
                 eigenvectoplot=(int(input('number of eigenvectors to plot:')))
@@ -347,14 +355,21 @@ class potential:
             print('{0:.{1}f}'.format(round(Esort[x],num_print_digits),num_print_digits))
         return eigenval 
 
-def loadeigen(eigfile='tmp.eig.npz'):
+def loadeigen(eigfile='tmp.eig.h5'):
     import numpy as np
-    data=np.load(eigfile)
-    x=data['gridx']
-    y=data['gridy']
-    z=data['pot']
-    eigenvec=data['eigenvec']
-    eigenval=data['eigenval']
+    import h5py
+    data=h5py.File(eigfile,'r')
+    x=data['x'][:]
+    y=data['y'][:]
+    z=data['z'][:]
+    eigenvec=data['eigenvec'][:]
+    eigenval=data['eigenval'][:]
+#    data=np.load(eigfile)
+#    x=data['gridx']
+#    y=data['gridy']
+#    z=data['pot']
+#    eigenvec=data['eigenvec']
+#    eigenval=data['eigenval']
     Esort=np.multiply(eigenval,hartreetocm)
     plot2d(x,y,z,wavenumber=True,title='Potential Energy Contours')
     eigenvectoplot=(int(input('number of eigenvectors to plot:')))
@@ -623,7 +638,7 @@ def main():
     import numpy as np
     import sys
     """ overloaded call... I may split this out later"""
-    if len(sys.argv)>1 and 'npz' in sys.argv[1]:
+    if len(sys.argv)>1 and 'h5' in sys.argv[1]:
         loadeigen(eigfile=sys.argv[1])
     else:
         pot=potential()
