@@ -364,16 +364,16 @@ def loadeigen(eigfile='tmp.eig.h5'):
     eigenvec=data['eigenvec'][:]
     eigenval=data['eigenval'][:]
     Esort=np.multiply(eigenval,hartreetocm)
-    plot2d(x,y,z,wavenumber=True,title='Potential Energy Contours')
+    plot2d(x,y,z,wavenumber=True,title='Potential Energy Contours',save='tmp.pot.pdf')
     eigenvectoplot=(int(input('number of eigenvectors to plot:')))
     if eigenvectoplot>0:
         for i in range(eigenvectoplot):
             if i==eigenvectoplot-1:
-                plot2d(x,y,np.square(eigenvec[i]),title='eigenvec {0} with energy {1:.3f}'.format(i,Esort[i]),block=True)
+                plot2d(x,y,np.square(eigenvec[i]),title='eigenvec {0} with energy {1:.3f}'.format(i,Esort[i]),save='tmpeig.'+str(i)+'.pdf')
             else:
-                plot2d(x,y,np.square(eigenvec[i]),title='eigenvec {0} with energy {1:.3f}'.format(i,Esort[i]),block=False)
+                plot2d(x,y,np.square(eigenvec[i]),title='eigenvec {0} with energy {1:.3f}'.format(i,Esort[i]),save='tmpeig.'+str(i)+'.pdf')
 
-def plot2dgrid(x,y,z,wavenumber=False,angular=False,norm=False,block=False,legend=True,title='2d filled contour plot'):
+def plot2dgrid(x,y,z,wavenumber=False,angular=False,norm=False,block=False,legend=True,title='2d filled contour plot',save='tmp.pdf'):
     """ 2d grids in with their corresponding z, e.g. np.shape (x_dim_len,y_dim_len) for x, y, and z"""
     import numpy as np
     import matplotlib.pyplot as plt
@@ -393,9 +393,12 @@ def plot2dgrid(x,y,z,wavenumber=False,angular=False,norm=False,block=False,legen
         l, b, w, h = plt.gca().get_position().bounds
         ll, bb, ww, hh = CB.ax.get_position().bounds
         CB.ax.set_position([ll, b + 0.1*h, ww, h*0.8])
-    plt.show(block=block)
+    if save=='tmp.pdf':
+        plt.show(block=block)
+    else:
+        plt.savefig(save)
 
-def plot2d(x,y,z,wavenumber=False,angular=False,norm=False,block=False,legend=True,title='2d filled contour plot'):
+def plot2d(x,y,z,wavenumber=False,angular=False,norm=False,block=False,legend=True,title='2d filled contour plot',save='tmp.pdf'):
     """ Flat x,y,z as input"""
     import numpy as np
 #    import matplotlib
@@ -427,7 +430,11 @@ def plot2d(x,y,z,wavenumber=False,angular=False,norm=False,block=False,legend=Tr
         l, b, w, h = plt.gca().get_position().bounds
         ll, bb, ww, hh = CB.ax.get_position().bounds
         CB.ax.set_position([ll, b + 0.1*h, ww, h*0.8])
-    plt.show(block=block)
+    if save=='tmp.pdf':
+        plt.show(block=block)
+    else:
+        plt.savefig(save)
+        plt.close()
 
 def H_array(pts=5,coordtype=['r'],mass=[0.5],qmin=[1.0],qmax=[2.0],V=[]):
     """ input 
