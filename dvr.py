@@ -176,6 +176,7 @@ class potential:
         Energies=Energies_raw-np.min(emin)
         Ener_spline=cubic1dspline(r[0],Energies)
         if len(self.harmonicfreq)==1:
+            raise ValueError("not implemented for %d dimensions" % (len(self.coordtypes)))
             from scipy.interpolate import splev
             mass=np.multiply(np.divide(splev(np.array([0.0]),Ener_spline,der=2),np.power(self.harmonicfreq,2)),np.divide(e_mass,amu)) 
             print('Adjusted potential to use mass of {0} based on harmonic frequency.'.format(mass))
@@ -256,11 +257,23 @@ class potential:
             x,y=result.x
             hessx=cubic2dspline.ev(x,y,dx=2) # calculate the second partial derivitive for dq0 at minimia
             hessy=cubic2dspline.ev(x,y,dy=2) # calculate the second partial derivitive for dq1 at minimia
-            print('Hessians calculated at ({2:.4e}, {3:.4e}) Eval={4:.0f} cm-1 as [{0:.4e} dq0^2, {1:.4e} dq1^2].'\
+            print('Hessians calculated at ({2:.4e}, {3:.4e}) Eval={4:.0f} cm-1 as [{0:.9e} dq0^2, {1:.9e} dq1^2].'\
                     .format(float(hessx),float(hessy),float(x),float(y),float(result.fun)*hartreetocm))
             mass[0]=np.multiply(np.divide(hessx,np.power(self.harmonicfreq[0],2)),np.divide(e_mass,amu)) 
             mass[1]=np.multiply(np.divide(hessy,np.power(self.harmonicfreq[1],2)),np.divide(e_mass,amu)) 
             print('Adjusted potential to use mass of {0} based on harmonic frequencies.'.format(mass))
+# this plots the 2d grid, incase you'd like to see which point corresponds to which coordinate
+#        import matplotlib.pyplot as plt
+#        plt.figure()
+#        plt.plot(r[0]*180/np.pi,r[1]*180/np.pi,linestyle='none',marker='o')
+#        labels=['{0}'.format(i) for i in range(len(r[0]))]
+#        for label, x,y in zip(labels,r[0,:],r[1,:]): 
+#            plt.annotate(label,
+#                    xy= (x,y), xytext = (-5,5),
+#                    textcoords= 'offset points', ha='right', va='bottom')
+##                    ,bbox=dict(boxstyle='round,pad=0.5',fc='yellow',alpha=0.5))
+##                    ,arrowprops=dict(arrowstyle ='->',connectionstyle='arc3,rad=0'))
+#        plt.show()
         mw1=mwspace(coordtype=coordtypes[0],rlen=rlen0,mass=mass[0],pts=pts[0])
         mw2=mwspace(coordtype=coordtypes[1],rlen=rlen1,mass=mass[1],pts=pts[1])
         if np.abs(np.subtract(mw1,mw2))>1.0E-07 or mingrid:
@@ -315,17 +328,6 @@ class potential:
         Esort=np.multiply(eigenval,hartreetocm)
 #        Etoprint=int(len(Esort))
         Etoprint=int(len(Esort)/2)
-# this plots the 2d grid, incase you'd like to see which point corresponds to which coordinate
-#        import matplotlib.pyplot as plt
-#        plt.figure()
-#        plt.plot(r[0],r[1],linestyle='none',marker='o')
-#        labels=['{0}'.format(i) for i in range(len(r[0]))]
-#        for label, x,y in zip(labels,r[0,:],r[1,:]): 
-#            plt.annotate(label,
-#                    xy= (x,y), xytext = (-5,5),
-#                    textcoords= 'offset points', ha='right', va='bottom')
-##                    ,bbox=dict(boxstyle='round,pad=0.5',fc='yellow',alpha=0.5))
-##                    ,arrowprops=dict(arrowstyle ='->',connectionstyle='arc3,rad=0'))
         if saveeigen:
             eigfile='tmp.eig.h5'
             from os.path import isfile
@@ -415,7 +417,7 @@ def plot2dgrid(x,y,z,wavenumber=False,angular=False,norm=False,block=False,legen
     else:
         plt.savefig(save)
 
-def plot2d(x,y,z,wavenumber=False,angular=False,norm=False,block=False,legend=True,title='2d filled contour plot',save='tmp.pdf'):
+def plot2d(x,y,z,wavenumber=False,angular=True,norm=False,block=False,legend=True,includegrid=False,title='2d filled contour plot',save='tmp.pdf'):
     """ Flat x,y,z as input"""
     import numpy as np
     import matplotlib.mlab as ml
@@ -439,6 +441,8 @@ def plot2d(x,y,z,wavenumber=False,angular=False,norm=False,block=False,legend=Tr
     plt.figure()
 #    cp=plt.contour(xi,yi,zi,cmap=(plt.cm.gnuplot),origin='lower',levels=levs)
     cp=plt.contourf(xi,yi,zi,cmap=(plt.cm.gnuplot),origin='lower',levels=levs)
+    if includegrid:
+        plt.plot(x,y,linestyle='none',marker='o')
     plt.title(title)
     if legend:
         CB = plt.colorbar(cp, shrink=0.8, extend='both')
