@@ -44,6 +44,7 @@ class potential:
         self.pts=[]
         self.mingrid=False
         self.harmonicfreq=[]
+        self.minpos=[]
         self.fiteignum=[]
         self.fiteigval=[]
 
@@ -101,6 +102,11 @@ class potential:
                     self.fiteignum=re.findall(r'\b\d+\b', x)
                     for x in range(len(self.fiteignum)):
                         self.fiteignum[x]=int(self.fiteignum[x])
+                elif 'minpos' in x.lower():
+                    self.minpos=rx.findall(x)
+                    print('Will use {0} as starting minimum for 2nd derivative evaluation if requested.'.format(self.minpos))
+                    for x in range(len(self.minpos)):
+                        self.minpos[x]=float(self.minpos[x])
                 elif 'harmonic' in x.lower():
                     self.harmonicfreq=rx.findall(x)
                     print('Will adjust reduced mass to match harmonic frequencies of {0} cm-1.'.format(self.harmonicfreq))
@@ -238,16 +244,20 @@ class potential:
         if len(self.harmonicfreq)==2:
             from scipy.interpolate import RectBivariateSpline, bisplev, bisplrep, spleval
             cubic2dspline= RectBivariateSpline(np.unique(r[0]), np.unique(r[1]),  np.reshape(Energies,(pts[0],pts[1])))
-            grid_x, grid_y = np.mgrid[qmin0:qmax0:pts[0]*100j,qmin1:qmax1:pts[1]*100j]
-            derv=np.add(np.abs(cubic2dspline.ev(grid_x,grid_y,dx=1)),\
-                    np.abs(cubic2dspline.ev(grid_x,grid_y,dy=1))).reshape(-1)
-#            plot2d(grid_x.reshape(-1),grid_y.reshape(-1),derv,norm=True)
-            pos=np.argmin(np.abs(derv))
-            x,y =grid_x.reshape(-1)[pos],grid_y.reshape(-1)[pos]
-#            np.set_printoptions(suppress=False,threshold=np.nan,linewidth=np.nan)
-            hessx=cubic2dspline.ev(x,y,dx=2) # calculate the second partial derivitive for dq0 at abs(lowest calculated 1st derivitive) 
-            hessy=cubic2dspline.ev(x,y,dy=2) # calculate the second partial derivitive for dq1 at abs(lowest calculated 1st derivitive)
-            print('Hessians calculated at {2:.4e}, {3:.4e} as {0:.4e} dq0^2 {1:.4e} dq1^2.'.format(float(hessx),float(hessy),float(x),float(y)))
+            from scipy.optimize import minimize
+            minbnds=(qmin0,qmin1)
+            maxbnds=(qmax0,qmax1)
+            bnds=list(zip(minbnds,maxbnds))
+            if len(self.minpos)==0:
+                c=[ (qmin0+qmax0)/2.0, (qmin1+qmax1)/2.0]
+            else:
+                c=[self.minpos[0],self.minpos[1]]
+            result=minimize(return2dspline,c,args=(cubic2dspline,0,0),bounds=bnds,jac=return2dsplinetotder,method='L-BFGS-B')
+            x,y=result.x
+            hessx=cubic2dspline.ev(x,y,dx=2) # calculate the second partial derivitive for dq0 at minimia
+            hessy=cubic2dspline.ev(x,y,dy=2) # calculate the second partial derivitive for dq1 at minimia
+            print('Hessians calculated at ({2:.4e}, {3:.4e}) Eval={4:.0f} cm-1 as [{0:.4e} dq0^2, {1:.4e} dq1^2].'\
+                    .format(float(hessx),float(hessy),float(x),float(y),float(result.fun)*hartreetocm))
             mass[0]=np.multiply(np.divide(hessx,np.power(self.harmonicfreq[0],2)),np.divide(e_mass,amu)) 
             mass[1]=np.multiply(np.divide(hessy,np.power(self.harmonicfreq[1],2)),np.divide(e_mass,amu)) 
             print('Adjusted potential to use mass of {0} based on harmonic frequencies.'.format(mass))
@@ -361,7 +371,7 @@ class potential:
             print('{0:.{1}f}'.format(round(Esort[x],num_print_digits),num_print_digits))
         return eigenval 
 
-def loadeigen(eigfile='tmp.eig.h5'):
+def loadeigen(eigfile='tmp.eig.h5',eigenvectoplot=1):
     import numpy as np
     import h5py
     eigbase=eigfile.split('.')[0]
@@ -373,7 +383,6 @@ def loadeigen(eigfile='tmp.eig.h5'):
     eigenval=data['eigenval'][:]
     Esort=np.multiply(eigenval,hartreetocm)
     plot2d(x,y,z,wavenumber=True,title='Potential Energy Contours',save=eigbase+'.pot.pdf')
-    eigenvectoplot=(int(input('number of eigenvectors to plot:')))
     if eigenvectoplot>0:
         for i in range(eigenvectoplot):
             if i==eigenvectoplot-1:
@@ -630,6 +639,15 @@ def return1dsplinemin(x,y):
     return (xmin,return1dsplinevalue(spline,xmin))
 #    return spline.interpolate.derivative().roots()
 
+def return2dspline(c,spline,dx,dy):
+    """ Returns value of 2d spline, for requested derivitive"""
+    return spline.ev(c[0],c[1],dx=dx,dy=dy)
+
+def return2dsplinetotder(c,spline,dx,dy):
+    """ Returns value of 2d spline, for sum of dx=1 and dy=1. Ignores dx dy args (because of scipy.minimize behavior for jacobian"""
+    from numpy import array
+    return array(([spline.ev(c[0],c[1],dx=1,dy=0),spline.ev(c[0],c[1],dx=0,dy=1)]))
+
 def mwspace(coordtype='r',rlen=1.0,mass=1.0,pts=2):
     from numpy import multiply, power, divide, pi , add
     if coordtype=='r':
@@ -646,7 +664,10 @@ def main():
     import sys
     """ overloaded call... I may split this out later"""
     if len(sys.argv)>1 and 'h5' in sys.argv[1]:
-        loadeigen(eigfile=sys.argv[1])
+        if len(sys.argv)>2:
+            loadeigen(eigfile=sys.argv[1],eigenvectoplot=int(sys.argv[2]))
+        else:
+            loadeigen(eigfile=sys.argv[1],eigenvectoplot=int(input('number of eigenvectors to plot:'))) 
     else:
         pot=potential()
         if len(sys.argv)>1:
