@@ -8,11 +8,10 @@ from builtins import (bytes, str, open, super, range, zip, round, input, int, po
 
 def constants(CODATA_year=2010):
     """ CODATA constants used in program and other global defintions including number of points and numpy datatype for reals"""
-    global numpy_precision, num_points, num_print_digits, plotit
+    global numpy_precision, num_points, num_print_digits
     numpy_precision="np.float64"
     num_points=101
     num_print_digits=3
-    plotit=False
     global planckconstant, light_speed, Rydberg, electron_charge, amu, bohr, e_mass, hartreetocm
     light_speed= 299792458 # m/s
     if CODATA_year==2010:
@@ -47,6 +46,12 @@ class potential:
         self.minpos=[]
         self.fiteignum=[]
         self.fiteigval=[]
+        self.massadjust=False
+        self.saveeigrequested=False
+        self.preplot=False
+        self.plotit=False
+        self.print2ndderiv=False
+        self.printeigenval=True
 
     def readpotential(self,inp):
         #potential should have coordinate and units as main input
@@ -92,12 +97,20 @@ class potential:
                     for y in typelist:
                         if y in types:
                             self.coordtypes.append(y)
+                elif 'preplot' in x.lower():
+                    self.preplot=True
+                elif 'plotit' in x.lower():
+                    self.plotit=True
                 elif 'mingrid' in x.lower():
                     self.mingrid=True
+                elif 'printderiv' in x.lower():
+                    self.print2ndderiv=True
+                elif 'noprinteigval' in x.lower():
+                    self.printeigenval=False
                 elif 'fiteigval' in x.lower():
                     self.fiteigval=rx.findall(x)
                     for x in range(len(self.fiteigval)):
-                        self.fiteigval[x]=float(self.fiteigval[x])
+                        self.fiteigval[x]=float(self.fiteigval[x])/ hartreetocm
                 elif 'fiteignum' in x.lower():
                     self.fiteignum=re.findall(r'\b\d+\b', x)
                     for x in range(len(self.fiteignum)):
@@ -149,17 +162,29 @@ class potential:
         for x in range(len(self.r)):
             self.pts.append(len(np.unique(self.r[x])))
 
+    def xlsx(self):
+        import xlsxwriter
+        workbook = xlsxwriter.Workbook('tmp.xlsx')
+        worksheet = workbook.add_worksheet()
+        for i in range(len(self.r)):
+            for j in range(len(self.r[i])):
+                worksheet.write(j,i,self.r[i][j])
+                if i==0:
+                    worksheet.write(j,len(self.r),self.energy[j])
+        workbook.close()
+
     def solve(self):
         if len(self.coordtypes)==1:
 #            from timeit import Timer
 #            t = Timer(lambda: spline1dpot(pts,mass,coordtypes,Energies,r))
 #            print('time={0}'.format(t.timeit(number=10)))
-            eigenval= self.spline1dpot(self.pts,self.mass,self.coordtypes,self.energy,self.r)
+            self.spline1dpot(self.pts,self.mass,self.coordtypes,self.energy,self.r)
         elif len(self.coordtypes)==2:
 #            from timeit import Timer
 #            t = Timer(lambda: spline2dpot(pts,mass,coordtypes,Energies,r))
 #            print('time={0}'.format(t.timeit(number=1)))
-            eigenval= self.spline2dpot(self.pts,self.mass,self.coordtypes,self.energy,self.r,mingrid=self.mingrid)
+            import numpy as np
+            self.spline2dpot([ x for x in self.pts ],[ x for x in self.mass ],self.coordtypes,self.energy,self.r)
         else:
             raise ValueError("not implemented for %d dimensions" % (len(self.coordtypes)))
             Ham=H_array(pts=pts,mass=mass,V=Energies,qmax=np.amax(r,axis=1),qmin=np.amin(r,axis=1),coordtype=coordtypes)
@@ -169,26 +194,72 @@ class potential:
             for x in range(Etoprint):
                 print('{0:.{1}f}'.format(round(Esort[x],num_print_digits),num_print_digits))
 
+    def fitfundamental(self):
+        from scipy.optimize import minimize
+        import numpy as np
+        c=[]
+        for x in range(len(self.fiteignum)):
+            c.append(np.multiply(self.mass[x],\
+                    np.square(np.divide(np.subtract(self.eigenval[self.fiteignum[x]],self.eigenval[0]),self.fiteigval[x]))))
+        result=minimize(self.calcfreqminusactualfreq,c)
+        print(result)
+        print(self.mass)
+
+    def calcfreqminusactualfreq(self,c):
+        self.mass=c
+        self.solve()
+        tot=0.0
+        from numpy import add, subtract, abs
+        for x in range(len(self.fiteignum)):
+            tot=add(abs(subtract(self.fiteigval[x],subtract(self.eigenval[self.fiteignum[x]],self.eigenval[0]))),tot)
+        return tot
+    
+    def printeigenvals(self):
+        from numpy import multiply
+        Esort=multiply(self.eigenval,hartreetocm)
+        Etoprint=int(len(Esort)/2)
+        for x in range(Etoprint):
+            print('{0:.{1}f}'.format(round(Esort[x],num_print_digits),num_print_digits))
+
     def spline1dpot(self,pts,mass,coordtypes,Energies_raw,r_raw):
         import numpy as np
         xmin,emin=return1dsplinemin(r_raw[0],Energies_raw)
-        r=r_raw-np.min(xmin)
+        #r=r_raw-np.min(xmin)
+        r=r_raw
         Energies=Energies_raw-np.min(emin)
         Ener_spline=cubic1dspline(r[0],Energies)
-        if len(self.harmonicfreq)==1:
+        if self.print2ndderiv:
+            from scipy.interpolate import splev
+            print('{0:10} {1:15} {2:15}'.format('Position','2nd Derivative','Eval cm-1'))
+            Energ=splev(xmin,Ener_spline)
+            derivs=splev(xmin,Ener_spline,der=2)
+            for x in range(len(xmin)):
+                print('({0:10.4e} {1:15.4e} {2:15.2f})'.format(xmin[x],derivs[x],Energ[x]*hartreetocm))
+        if len(self.harmonicfreq)==1 and not self.massadjust:
             raise ValueError("not implemented for %d dimensions" % (len(self.coordtypes)))
             from scipy.interpolate import splev
-            mass=np.multiply(np.divide(splev(np.array([0.0]),Ener_spline,der=2),np.power(self.harmonicfreq,2)),np.divide(e_mass,amu)) 
+            if len(self.minpos)==0:
+                minpos=(min(r[0])+max(r[0]))/2.0
+            else:
+                minpos=self.minpos[0]
+            mass=np.multiply(np.divide(splev(np.array(minpos),Ener_spline,der=2),np.power(self.harmonicfreq,2)),np.divide(e_mass,amu)) 
             print('Adjusted potential to use mass of {0} based on harmonic frequency.'.format(mass))
+            self.massadjust=True
         xnew = np.linspace(min(r[0]),max(r[0]), num=num_points)
         vfit=return1dsplinevalue(Ener_spline,xnew)
         Ham=H_array(pts=pts,mass=mass,V=Energies,qmax=np.amax(r,axis=1),qmin=np.amin(r,axis=1),coordtype=coordtypes)
         eigenval, eigenvec=np.linalg.eig(Ham)
         eindex=np.argsort(eigenval)
-        eigenval, eigenvec= eigenval[eindex], np.transpose(eigenvec[:,eindex])
-        Esort=(eigenval*hartreetocm)
+        self.eigenval, eigenvec= eigenval[eindex], np.transpose(eigenvec[:,eindex])
+        Esort=(self.eigenval*hartreetocm)
         Etoprint=int(len(Esort)/2)
-        if plotit:
+        maxpot=np.max(vfit)*hartreetocm
+        i=0
+        for i in range(Etoprint):
+            if Esort[i]>maxpot:
+                Etoprint=i-1
+                break
+        if self.plotit:
             vfitcm=vfit*hartreetocm
             import matplotlib.pyplot as plt
             plt.figure()
@@ -209,40 +280,39 @@ class potential:
                         break
             for x in range(Etoprint):
                 plt.plot((mincut[x],maxcut[x]),(Esort[x],Esort[x]),linestyle='solid')
-#        plt.legend(['Points', 'Cubic Spline'])
+            plt.legend(['Points', 'Cubic Spline'])
             plt.title('Cubic-spline interpolation')
             plt.axis()
-            plt.show(block=False)
-            plt.figure()
-            plt.title('ground state')
-            plt.plot(r[0],Energies/np.max(Energies))
-            plt.plot(r[0],np.square(eigenvec[0]),marker='o')
-            plt.plot(r[0],eigenvec[0],marker='x')
-            plt.show(block=False)
-            plt.figure()
-            plt.title('v=1 state')
-            plt.plot(r[0],Energies/np.max(Energies))
-            plt.plot(r[0],eigenvec[1],marker='o')
-            plt.plot(r[0],np.square(eigenvec[1]),marker='x')
             plt.show(block=True)
-        for x in range(Etoprint):
-            print('{0:.{1}f}'.format(round(Esort[x],num_print_digits),num_print_digits))
-        return eigenval 
+#            plt.figure()
+#            plt.title('ground state')
+#            plt.plot(r[0],Energies/np.max(Energies))
+#            plt.plot(r[0],np.square(eigenvec[0]),marker='o')
+#            plt.plot(r[0],eigenvec[0],marker='x')
+#            plt.show(block=False)
+#            plt.figure()
+#            plt.title('v=1 state')
+#            plt.plot(r[0],Energies/np.max(Energies))
+#            plt.plot(r[0],eigenvec[1],marker='o')
+#            plt.plot(r[0],np.square(eigenvec[1]),marker='x')
+#            plt.show(block=True)
 
-    def spline2dpot(self,pts,mass,coordtypes,Energies,r,mingrid=False,saveeigen=True):
+    def spline2dpot(self,pts,mass,coordtypes,Energies,r,saveeigen=True):
         import numpy as np
         from scipy.interpolate import griddata
         from potgen import silentmweq, roundmasstoequal
+        if self.preplot:
+            plot2d(r[0],r[1],Energies,wavenumber=True,title='Potential Energy Contours',block=True,includegrid=True)
         sigfigs=4
-        qmin0 =np.min(r[0]) 
-        qmax0 =np.max(r[0]) 
-        qmin1 =np.min(r[1]) 
-        qmax1 =np.max(r[1]) 
+        qmin0 =np.copy(np.min(r[0]))
+        qmax0 =np.copy(np.max(r[0]) )
+        qmin1 =np.copy(np.min(r[1]) )
+        qmax1 =np.copy(np.max(r[1]) )
         org=[qmin0,qmax0,qmin1,qmax1]
         """ rlen is (max-min) of potential, scaled to b-a by adding two more points!"""
         rlen0=np.multiply(np.subtract(qmax0,qmin0),np.divide(np.add(float(pts[0]),1.0),np.subtract(float(pts[0]),1.0)))
         rlen1=np.multiply(np.subtract(qmax1,qmin1),np.divide(np.add(float(pts[1]),1.0),np.subtract(float(pts[1]),1.0)))
-        if len(self.harmonicfreq)==2:
+        if len(self.harmonicfreq)==2 and not self.massadjust:
             from scipy.interpolate import RectBivariateSpline, bisplev, bisplrep, spleval
             cubic2dspline= RectBivariateSpline(np.unique(r[0]), np.unique(r[1]),  np.reshape(Energies,(pts[0],pts[1])))
             from scipy.optimize import minimize
@@ -262,6 +332,7 @@ class potential:
             mass[0]=np.multiply(np.divide(hessx,np.power(self.harmonicfreq[0],2)),np.divide(e_mass,amu)) 
             mass[1]=np.multiply(np.divide(hessy,np.power(self.harmonicfreq[1],2)),np.divide(e_mass,amu)) 
             print('Adjusted potential to use mass of {0} based on harmonic frequencies.'.format(mass))
+            self.massadjust=True
 # this plots the 2d grid, incase you'd like to see which point corresponds to which coordinate
 #        import matplotlib.pyplot as plt
 #        plt.figure()
@@ -276,11 +347,11 @@ class potential:
 #        plt.show()
         mw1=mwspace(coordtype=coordtypes[0],rlen=rlen0,mass=mass[0],pts=pts[0])
         mw2=mwspace(coordtype=coordtypes[1],rlen=rlen1,mass=mass[1],pts=pts[1])
-        if np.abs(np.subtract(mw1,mw2))>1.0E-07 or mingrid:
+        if np.abs(np.subtract(mw1,mw2))>1.0E-07 or self.mingrid:
             """ Adjust potential to have equal massweighted spacing"""
             print('Mass weighting unequal, adjusting grid\n OLD: {0:.4f}-{1:.4f} pts {2} {3:.4f}-{4:.4f} pts {5}'\
-                    .format(qmin0,qmax0,pts[0],qmin1,qmax1,pts[1]))
-            a=silentmweq([ [qmax0,qmin0,coordtypes[0],pts[0],mass[0]], [qmax1,qmin1,coordtypes[1],pts[1],mass[1]] ],mingrid=mingrid)
+                    .format(float(qmin0),float(qmax0),int(pts[0]),float(qmin1),float(qmax1),int(pts[1])))
+            a=silentmweq([ [qmax0,qmin0,coordtypes[0],pts[0],mass[0]], [qmax1,qmin1,coordtypes[1],pts[1],mass[1]] ],mingrid=self.mingrid)
             """ It is possible to override points and grid to be fit to here... Thinking about adding a manual option but unsure why I'd do that..."""
             qmax0,qmin0,pts[0]=np.max(a[0].grid),np.min(a[0].grid),a[0].numpoints
             qmax1,qmin1,pts[1]=np.max(a[1].grid),np.min(a[1].grid),a[1].numpoints
@@ -319,23 +390,23 @@ class potential:
 #            print('using {2} sig figs of reduced mass of [{0:.{3}e}, {1:.{3}e}] amu.'.format(float(mass[0]),float(mass[1]),sigfigs,sigfigs-1))
             Ham=H_array(pts=pts,mass=mass,V=Energies,qmax=np.amax(r,axis=1),qmin=np.amin(r,axis=1),coordtype=coordtypes)
         eigenval, eigenvec=np.linalg.eig(Ham)
-        eigenval=eigenval.real.astype(eval(numpy_precision))
+        self.eigenval=eigenval.real.astype(eval(numpy_precision))
         eindex=np.argsort(eigenval)
-        eigenval, eigenvec= eigenval[eindex], np.transpose(eigenvec[:,eindex])
+        self.eigenval, eigenvec= eigenval[eindex], np.transpose(eigenvec[:,eindex])
 #        from scipy.sparse.linalg import eigs
         """ Sparse solver doesn't give speedup for computing eigenvalues of all solutions.... """
 #       eigenval, eigenvec=eigs(Ham,k=int((pts[0]*pts[1])-2),sigma=0,M=None,which='LM')
-        Esort=np.multiply(eigenval,hartreetocm)
-#        Etoprint=int(len(Esort))
-        Etoprint=int(len(Esort)/2)
+        Esort=np.multiply(self.eigenval,hartreetocm)
         if saveeigen:
             eigfile='tmp.eig.h5'
             from os.path import isfile
             if isfile(eigfile):
-                if 'y' not in input('outfile (tmp.eig) exists, overwrite? [y,N]').lower():
-                    saveeigen=False
+                if not self.saveeigrequested:
+                    if 'y' not in input('outfile (tmp.eig) exists, overwrite? [y,N]').lower():
+                        saveeigen=False
+                    self.saveeigrequested=True
             if saveeigen:
-                if np.abs(np.subtract(mw1,mw2))>1.0E-07 or mingrid:
+                if np.abs(np.subtract(mw1,mw2))>1.0E-07 or self.mingrid:
                     gridx, gridy, pot = np.ravel(grid_x),np.ravel(grid_y),np.ravel(vfit)
                 else:
                     gridx, gridy = np.array(r[0],dtype=eval(numpy_precision)), np.array(r[1],dtype=eval(numpy_precision)) 
@@ -346,10 +417,10 @@ class potential:
                 f.create_dataset('y',data=gridy)
                 f.create_dataset('z',data=pot)
                 f.create_dataset('eigenvec',data=eigenvec)
-                f.create_dataset('eigenval',data=eigenval)
+                f.create_dataset('eigenval',data=self.eigenval)
                 f.close()
-        if plotit:
-            if np.abs(np.subtract(mw1,mw2))>1.0E-07 or mingrid:
+        if self.plotit:
+            if np.abs(np.subtract(mw1,mw2))>1.0E-07 or self.mingrid:
                 plot2dgrid(grid_x,grid_y,vfit,wavenumber=True,title='Potential Energy Contours')
                 eigenvectoplot=(int(input('number of eigenvectors to plot:')))
                 if eigenvectoplot>0:
@@ -369,9 +440,6 @@ class potential:
                             plot2d(r[0],r[1],np.square(eigenvec[i]),title='eigenvec {0} with energy {1:.3f}'.format(i,Esort[i]),block=True)
                         else:
                             plot2d(r[0],r[1],np.square(eigenvec[i]),title='eigenvec {0} with energy {1:.3f}'.format(i,Esort[i]))
-        for x in range(Etoprint):
-            print('{0:.{1}f}'.format(round(Esort[x],num_print_digits),num_print_digits))
-        return eigenval 
 
 def loadeigen(eigfile='tmp.eig.h5',eigenvectoplot=1):
     import numpy as np
@@ -388,9 +456,9 @@ def loadeigen(eigfile='tmp.eig.h5',eigenvectoplot=1):
     if eigenvectoplot>0:
         for i in range(eigenvectoplot):
             if i==eigenvectoplot-1:
-                plot2d(x,y,np.square(eigenvec[i]),title='eigenvec {0} with energy {1:.3f}'.format(i,Esort[i]),save=eigbase+'.eig.'+str(i)+'.pdf')
+                plot2d(x,y,eigenvec[i],title='eigenvec {0} with energy {1:.3f}'.format(i,Esort[i]),save=eigbase+'.eig.'+str(i)+'.pdf',includegrid=False)
             else:
-                plot2d(x,y,np.square(eigenvec[i]),title='eigenvec {0} with energy {1:.3f}'.format(i,Esort[i]),save=eigbase+'.eig.'+str(i)+'.pdf')
+                plot2d(x,y,eigenvec[i],title='eigenvec {0} with energy {1:.3f}'.format(i,Esort[i]),save=eigbase+'.eig.'+str(i)+'.pdf',includegrid=False)
 
 def plot2dgrid(x,y,z,wavenumber=False,angular=False,norm=False,block=False,legend=True,title='2d filled contour plot',save='tmp.pdf'):
     """ 2d grids in with their corresponding z, e.g. np.shape (x_dim_len,y_dim_len) for x, y, and z"""
@@ -422,6 +490,8 @@ def plot2d(x,y,z,wavenumber=False,angular=True,norm=False,block=False,legend=Tru
     import numpy as np
     import matplotlib.mlab as ml
     import matplotlib.pyplot as plt
+    if norm and wavenumber:
+        raise ValueError("normalization and wavenumber plotting muturally inconsistent ")
     if norm:
         z=np.divide(z,np.subtract(np.max(z),np.min(z)))
     if wavenumber:
@@ -678,7 +748,12 @@ def main():
             pot.readpotential(inp=sys.argv[1])
         else:
             pot.readpotential(inp=input('Give the file with the potential: '))
+#        pot.xlsx()
         pot.solve()
+        if len(pot.fiteignum)>0:
+            pot.fitfundamental()
+        if pot.printeigenval==True:
+            pot.printeigenvals()
 
 # jacobian stuff
 #    A = array([[2.0,1.0],[5.0,7.0]])
