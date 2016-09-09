@@ -229,12 +229,13 @@ class potential:
         r=r_raw
         Energies=Energies_raw-np.min(emin)
         from scipy.interpolate import splrep
-        Ener_spline=splrep(r[0],Energies,s=1e-7)
+        Ener_spline=splrep(r[0],Energies,s=0)
         from scipy.interpolate import splev
         if self.print2ndderiv:
             print('{0:10} {1:15} {2:15}'.format('Position','2nd Derivative','Eval cm-1'))
-            Energ=splev(xmin,Ener_spline)
-            derivs=splev(xmin,Ener_spline,der=2)
+            smooth_spline=splrep(r[0],Energies,s=1e-7)
+            Energ=splev(xmin,smooth_spline)
+            derivs=splev(xmin,smooth_spline,der=2)
             for x in range(len(xmin)):
                 print('({0:10.4e} {1:15.4e} {2:15.2f})'.format(xmin[x],derivs[x],Energ[x]*hartreetocm))
         if len(self.harmonicfreq)==1 and not self.massadjust:
@@ -248,8 +249,8 @@ class potential:
             self.massadjust=True
         xnew = np.linspace(min(r[0]),max(r[0]), num=num_points)
         vfit= splev(xnew, Ener_spline, der=0)
-        der1= splev(xnew, Ener_spline, der=1)
-        der2= splev(xnew, Ener_spline, der=2)
+#        der1= splev(xnew, smooth_spline, der=1)
+#        der2= splev(xnew, smooth_spline, der=2)
         Ham=H_array(pts=pts,mass=mass,V=Energies,qmax=np.amax(r,axis=1),qmin=np.amin(r,axis=1),coordtype=coordtypes)
         eigenval, eigenvec=np.linalg.eig(Ham)
         eindex=np.argsort(eigenval)
@@ -265,8 +266,8 @@ class potential:
         if self.plotit:
             vfitcm=vfit*hartreetocm
             import matplotlib.pyplot as plt
-            plot1dfit(self.r[0],self.energy,xnew,der1,title='Spline 1st deriv',block=False)
-            plot1dfit(self.r[0],self.energy,xnew,der2,title='Spline 2nd deriv',block=False)
+#            plot1dfit(self.r[0],self.energy,xnew,der1,title='Spline 1st deriv',block=False)
+#            plot1dfit(self.r[0],self.energy,xnew,der2,title='Spline 2nd deriv',block=False)
             plt.figure()
             plt.plot(r[0],Energies*hartreetocm,linestyle='none',marker='o')
             plt.plot(xnew,vfitcm,linestyle='solid',marker='None')
@@ -345,7 +346,7 @@ class potential:
         rlen1=np.multiply(np.subtract(qmax1,qmin1),np.divide(np.add(float(pts[1]),1.0),np.subtract(float(pts[1]),1.0)))
         if len(self.harmonicfreq)==2 and not self.massadjust:
             from scipy.interpolate import RectBivariateSpline, bisplev, bisplrep, spleval
-            cubic2dspline= RectBivariateSpline(np.unique(r[0]), np.unique(r[1]),  np.reshape(Energies,(pts[0],pts[1])))
+            cubic2dspline= RectBivariateSpline(np.unique(r[0]), np.unique(r[1]),  np.reshape(Energies,(pts[0],pts[1])),s=1E-07)
             from scipy.optimize import minimize
             minbnds=(qmin0,qmin1)
             maxbnds=(qmax0,qmax1)
