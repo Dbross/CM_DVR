@@ -34,6 +34,7 @@ def constants(CODATA_year=2010):
 #    hartreetocm=219474.6313717
 
 class potential:
+    """ Define this class, along with keywords"""
 # anyline starting with ! or # is commented out
     def __init__(self):
         self.r=[]
@@ -227,9 +228,10 @@ class potential:
         #r=r_raw-np.min(xmin)
         r=r_raw
         Energies=Energies_raw-np.min(emin)
-        Ener_spline=cubic1dspline(r[0],Energies)
+        from scipy.interpolate import splrep
+        Ener_spline=splrep(r[0],Energies,s=1e-7)
+        from scipy.interpolate import splev
         if self.print2ndderiv:
-            from scipy.interpolate import splev
             print('{0:10} {1:15} {2:15}'.format('Position','2nd Derivative','Eval cm-1'))
             Energ=splev(xmin,Ener_spline)
             derivs=splev(xmin,Ener_spline,der=2)
@@ -237,7 +239,6 @@ class potential:
                 print('({0:10.4e} {1:15.4e} {2:15.2f})'.format(xmin[x],derivs[x],Energ[x]*hartreetocm))
         if len(self.harmonicfreq)==1 and not self.massadjust:
             raise ValueError("not implemented for %d dimensions" % (len(self.coordtypes)))
-            from scipy.interpolate import splev
             if len(self.minpos)==0:
                 minpos=(min(r[0])+max(r[0]))/2.0
             else:
@@ -246,7 +247,9 @@ class potential:
             print('Adjusted potential to use mass of {0} based on harmonic frequency.'.format(mass))
             self.massadjust=True
         xnew = np.linspace(min(r[0]),max(r[0]), num=num_points)
-        vfit=return1dsplinevalue(Ener_spline,xnew)
+        vfit= splev(xnew, Ener_spline, der=0)
+        der1= splev(xnew, Ener_spline, der=1)
+        der2= splev(xnew, Ener_spline, der=2)
         Ham=H_array(pts=pts,mass=mass,V=Energies,qmax=np.amax(r,axis=1),qmin=np.amin(r,axis=1),coordtype=coordtypes)
         eigenval, eigenvec=np.linalg.eig(Ham)
         eindex=np.argsort(eigenval)
@@ -262,6 +265,8 @@ class potential:
         if self.plotit:
             vfitcm=vfit*hartreetocm
             import matplotlib.pyplot as plt
+            plot1dfit(self.r[0],self.energy,xnew,der1,title='Spline 1st deriv',block=False)
+            plot1dfit(self.r[0],self.energy,xnew,der2,title='Spline 2nd deriv',block=False)
             plt.figure()
             plt.plot(r[0],Energies*hartreetocm,linestyle='none',marker='o')
             plt.plot(xnew,vfitcm,linestyle='solid',marker='None')
@@ -296,6 +301,32 @@ class potential:
 #            plt.plot(r[0],eigenvec[1],marker='o')
 #            plt.plot(r[0],np.square(eigenvec[1]),marker='x')
 #            plt.show(block=True)
+
+    def fit1dpot(self):
+        import numpy as np
+        from scipy.optimize import curve_fit, root, brentq
+        import inspect
+        #init=[np.max(self.energy)]* (len(inspect.getfullargspec(func1d).args)-2)
+        init=[0.0001]*(len(inspect.getfullargspec(func1d).args)-2) 
+        popt,pconv= curve_fit(func1d, self.r[0],self.energy,p0=(0,*init))
+        xgrid=np.linspace(np.min(self.r[0]),np.max(self.r[0]),100)
+        popt=np.ndarray.tolist(popt)
+        plot1dfit(self.r[0],self.energy,xgrid,func1d(xgrid,*popt),title='analytic func',block=False)
+        plot1dfit(self.r[0],self.energy,xgrid,func1dder1(xgrid,*popt),title='1nd Deriv, analytic func',block=False)
+        plot1dfit(self.r[0],self.energy,xgrid,func1dder2(xgrid,*popt),title='2nd Deriv, analytic func',block=False)
+        derivgrid=func1dder1(xgrid,*popt)
+        asign = np.sign(derivgrid)
+        signchange = ((np.roll(asign, 1) - asign) != 0).astype(int)
+        signchange[0]=0
+        roots=[]
+        print('From fit potential')
+        print('{0:10} {1:15} {2:15}'.format('Position','2nd Derivative','Eval cm-1'))
+        for x in range(len(signchange)):
+            if signchange[x]==1:# and np.greater(func1dder2(np.squeeze(xgrid[x]),*popt),0):
+                tmproot=brentq(func1dder1,xgrid[x-1],xgrid[x],args=tuple(popt))
+                print('({0:10.4e} {1:15.4e} {2:15.2f})'\
+                        .format(tmproot,func1dder2(tmproot,*popt),func1d(tmproot,*popt)*hartreetocm))
+#                print(derivgrid[x],derivgrid[x-1])
 
     def spline2dpot(self,pts,mass,coordtypes,Energies,r,saveeigen=True):
         import numpy as np
@@ -695,22 +726,12 @@ def jacobi(A,b,N=25,x=None):
         x = (b - dot(R,x)) / D
     return x
 
-def cubic1dspline(x,y):
-    """ Performs a cubic spline with no smoothing and returns the spline function"""
-    from scipy.interpolate import splrep
-    return splrep(x, y, s=0)
-
-def return1dsplinevalue(spline,xnew):
-    """ returns the value(s) of a spline function at a given x(s)"""
-    from scipy.interpolate import splev
-    return splev(xnew, spline, der=0)
-
 def return1dsplinemin(x,y):
     """Returns the minimum from a spline function"""
-    from scipy.interpolate import splrep, splder, sproot
+    from scipy.interpolate import splrep, splder, sproot, splev
     spline=splrep(x, y, s=0,k=4)
     xmin=sproot(splder(spline) )
-    return (xmin,return1dsplinevalue(spline,xmin))
+    return (xmin, splev(xmin,spline,der=0)) 
 #    return spline.interpolate.derivative().roots()
 
 def return2dspline(c,spline,dx,dy):
@@ -722,6 +743,44 @@ def return2dsplinetotder(c,spline,dx,dy):
     from numpy import array
     return array(([spline.ev(c[0],c[1],dx=1,dy=0),spline.ev(c[0],c[1],dx=0,dy=1)]))
 
+def func1d(x,c,a1,b1,a2,b2,a3,b3,a4,b4):
+    from numpy import cos, sin, add, multiply, power
+    return add(c, add( add( add( \
+            add(multiply(cos(x),a1),multiply(sin(x),b1)) , \
+            add(multiply(cos(multiply(x,2)),a2),multiply(sin(multiply(x,2)),b2))),\
+            add(multiply(cos(multiply(x,3)),a3),multiply(sin(multiply(x,3)),b3))),\
+            add(multiply(cos(multiply(x,4)),a4),multiply(sin(multiply(x,4)),b4))),\
+            )
+
+def func1dder1(x,c,a1,b1,a2,b2,a3,b3,a4,b4):
+    from numpy import cos, sin, add, multiply
+    return  add( add( add(\
+            add(multiply(-sin(x),a1),multiply(cos(x),b1)) , \
+            add(multiply(-sin(multiply(x,2)),multiply(a2,2)),multiply(cos(multiply(x,2)),multiply(b2,2)))),\
+            add(multiply(-sin(multiply(x,3)),multiply(a3,3)),multiply(cos(multiply(x,3)),multiply(b3,3)))),\
+            add(multiply(-sin(multiply(x,4)),multiply(a4,4)),multiply(cos(multiply(x,4)),multiply(b4,4))),\
+            )
+
+def func1dder2(x,c,a1,b1,a2,b2,a3,b3,a4,b4):
+    from numpy import cos, sin, add, multiply
+    return  add( add( add(\
+            add(multiply(-cos(x),a1),multiply(cos(x),b1)) , \
+            add(multiply(-cos(multiply(x,2)),multiply(a2,4)),multiply(-sin(multiply(x,2)),multiply(b2,4)))),\
+            add(multiply(-cos(multiply(x,3)),multiply(a3,9)),multiply(-sin(multiply(x,3)),multiply(b3,9)))),\
+            add(multiply(-cos(multiply(x,4)),multiply(a4,16)),multiply(-sin(multiply(x,4)),multiply(b4,16))),\
+            )
+
+def plot1dfit(x0,y0,xgrid,yfit,block=True,legend=['Points','Fit'],title='Fit Potential'):
+    import matplotlib.pyplot as plt
+    plt.figure()
+    plt.plot(x0,y0,linestyle='none',marker='o')
+    plt.plot(xgrid,yfit,linestyle='solid',marker='None')
+    plt.axis()
+    plt.legend(legend)
+    plt.title(title)
+    plt.show(block=block)
+
+    
 def mwspace(coordtype='r',rlen=1.0,mass=1.0,pts=2):
     from numpy import multiply, power, divide, pi , add
     if coordtype=='r':
@@ -749,6 +808,7 @@ def main():
         else:
             pot.readpotential(inp=input('Give the file with the potential: '))
 #        pot.xlsx()
+#        pot.fit1dpot()
         pot.solve()
         if len(pot.fiteignum)>0:
             pot.fitfundamental()
