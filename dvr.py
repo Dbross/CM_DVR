@@ -249,8 +249,6 @@ class potential:
             self.massadjust=True
         xnew = np.linspace(min(r[0]),max(r[0]), num=num_points)
         vfit= splev(xnew, Ener_spline, der=0)
-#        der1= splev(xnew, smooth_spline, der=1)
-#        der2= splev(xnew, smooth_spline, der=2)
         Ham=H_array(pts=pts,mass=mass,V=Energies,qmax=np.amax(r,axis=1),qmin=np.amin(r,axis=1),coordtype=coordtypes)
         eigenval, eigenvec=np.linalg.eig(Ham)
         eindex=np.argsort(eigenval)
@@ -266,8 +264,11 @@ class potential:
         if self.plotit:
             vfitcm=vfit*hartreetocm
             import matplotlib.pyplot as plt
-#            plot1dfit(self.r[0],self.energy,xnew,der1,title='Spline 1st deriv',block=False)
-#            plot1dfit(self.r[0],self.energy,xnew,der2,title='Spline 2nd deriv',block=False)
+            if self.print2ndderiv:
+                der1= splev(xnew, smooth_spline, der=1)
+                der2= splev(xnew, smooth_spline, der=2)
+                plot1dfit(self.r[0],self.energy,xnew,der1,title='Spline 1st deriv',block=False)
+                plot1dfit(self.r[0],self.energy,xnew,der2,title='Spline 2nd deriv',block=False)
             plt.figure()
             plt.plot(r[0],Energies*hartreetocm,linestyle='none',marker='o')
             plt.plot(xnew,vfitcm,linestyle='solid',marker='None')
