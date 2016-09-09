@@ -347,7 +347,7 @@ class potential:
         rlen1=np.multiply(np.subtract(qmax1,qmin1),np.divide(np.add(float(pts[1]),1.0),np.subtract(float(pts[1]),1.0)))
         if len(self.harmonicfreq)==2 and not self.massadjust:
             from scipy.interpolate import RectBivariateSpline, bisplev, bisplrep, spleval
-            cubic2dspline= RectBivariateSpline(np.unique(r[0]), np.unique(r[1]),  np.reshape(Energies,(pts[0],pts[1])),s=1E-07)
+            cubic2dspline= RectBivariateSpline(np.unique(r[0]), np.unique(r[1]),  np.reshape(Energies,(pts[0],pts[1])),s=1e-6)
             from scipy.optimize import minimize
             minbnds=(qmin0,qmin1)
             maxbnds=(qmax0,qmax1)
@@ -360,12 +360,20 @@ class potential:
             x,y=result.x
             hessx=cubic2dspline.ev(x,y,dx=2) # calculate the second partial derivitive for dq0 at minimia
             hessy=cubic2dspline.ev(x,y,dy=2) # calculate the second partial derivitive for dq1 at minimia
+            if (float(hessx) < 0) or (float(hessy) < 0):
+                print('Issues in hessian calculation, increase smoothing value in RectBivariateSpline in potential.spline2dpot to help')
+                self.plotit=True
             print('Hessians calculated at ({2:.4e}, {3:.4e}) Eval={4:.0f} cm-1 as [{0:.9e} dq0^2, {1:.9e} dq1^2].'\
                     .format(float(hessx),float(hessy),float(x),float(y),float(result.fun)*hartreetocm))
             mass[0]=np.multiply(np.divide(hessx,np.power(self.harmonicfreq[0],2)),np.divide(e_mass,amu)) 
             mass[1]=np.multiply(np.divide(hessy,np.power(self.harmonicfreq[1],2)),np.divide(e_mass,amu)) 
             print('Adjusted potential to use mass of {0} based on harmonic frequencies.'.format(mass))
             self.massadjust=True
+            if self.plotit:
+                x,y= np.meshgrid(np.unique(r[0]), np.unique(r[1]))
+                z=return2dspline((x,y),cubic2dspline,0,0)
+                plot2d(r[0],r[1],Energies,wavenumber=True,title='Potential Energy Contours',block=False)
+                plot2dgrid(x,y,z,wavenumber=True,title='PES Fit',block=True)
 # this plots the 2d grid, incase you'd like to see which point corresponds to which coordinate
 #        import matplotlib.pyplot as plt
 #        plt.figure()
