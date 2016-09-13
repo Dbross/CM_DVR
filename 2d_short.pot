@@ -3,8 +3,8 @@ radial radial
 angstrom
 !harmonic = 1000 1000
 minpos = 0 0
-!fiteigval= 1050 1025
-!fiteignum = 2 1 
+fiteigval= 1050 1025
+fiteignum = 2 1 
 !mingrid
 -0.24 -0.24 0.0552285876092028
 -0.24 -0.2 0.0467908867244635
