@@ -67,7 +67,7 @@ class q:
             self.grid=delete(self.grid,len(self.grid)-1)
             self.numpoints=self.numpoints-1
 
-    def equivalencemwcoords(self,q_other,forcegrid=False,innerbound=True,autoselect=False,mingrid=False):
+    def equivalencemwcoords(self,q_other,forcegrid=False,innerbound=True,autoselect=False,mingrid=False,startlow=False,uselowest=False):
         from scipy.optimize import minimize, basinhopping
         from numpy import subtract, multiply, int, pi, add, abs, array, argmin, less, where, equal, mod
         m1=self.mass
@@ -76,7 +76,7 @@ class q:
         triali=[]
         trialj=[]
         vals=[]
-        mini, maxi,minj,maxj =int(round(0.5*self.numpoints)),self.numpoints*5, int(round(0.5*q_other.numpoints)),q_other.numpoints*5
+        mini, maxi,minj,maxj =int(round(0.5*self.numpoints)),self.numpoints*50, int(round(0.5*q_other.numpoints)),q_other.numpoints*50
         if mingrid:
             mini, maxi =min(21,int(self.numpoints*0.5)),self.numpoints+1,
             minj, maxj =min(21,int(self.numpoints*0.5)),q_other.numpoints+1 
@@ -84,18 +84,19 @@ class q:
             """ modify grid of two radial coordinates to make mass weighting equal"""
             c=[self.maxval, self.minval, q_other.maxval, q_other.minval]
             if not innerbound:
-                minbnds=(multiply(self.maxval,0.9),multiply(self.minval,1.000000001),\
-                        multiply(q_other.maxval,0.9),multiply(q_other.minval,1.000000001))
-                maxbnds=(multiply(self.maxval,0.9999999999),multiply(self.minval,1.1),\
-                        multiply(q_other.maxval,0.9999999999),multiply(q_other.minval,1.1))
+                minbnds=(multiply(self.maxval,0.8),multiply(self.minval,1.000000001),\
+                        multiply(q_other.maxval,0.8),multiply(q_other.minval,1.000000001))
+                maxbnds=(multiply(self.maxval,0.9999999999),multiply(self.minval,1.3),\
+                        multiply(q_other.maxval,0.9999999999),multiply(q_other.minval,1.3))
             else:
                 minbnds=(multiply(self.maxval,0.9),multiply(self.minval,0.9),\
                         multiply(q_other.maxval,0.9),multiply(q_other.minval,0.9))
                 maxbnds=(multiply(self.maxval,1.1),multiply(self.minval,1.1),\
                         multiply(q_other.maxval,1.1),multiply(q_other.minval,1.1))
             bnds=list(zip(minbnds,maxbnds))
-            for i in range(mini,maxi, 1):
-                for j in range(minj,maxj, 1):
+            mingridsolutionfound=False
+            for i in range(self.numpoints,mini, -1):
+                for j in range(q_other.numpoints,minj, -1):
                     result=minimize(frr,c,args=(m1,m2,i,j),bounds=bnds)
                     result.fun=frr(result.x,m1,m2,i,j)
                     if less(result.fun,1e-8):
@@ -103,6 +104,22 @@ class q:
                         triali.append(i)
                         trialj.append(j)
                         vals.append(result.x)
+                        mingridsolutionfound=True
+            stoploop=False
+            if not mingridsolutionfound:
+                for i in range(self.numpoints,maxi):
+                    if stoploop:
+                        break
+                    for j in range(self.numpoints,maxj):
+                        result=minimize(frr,c,args=(m1,m2,i,j),bounds=bnds)
+                        result.fun=frr(result.x,m1,m2,i,j)
+                        if less(result.fun,1e-8):
+                            trialval.append(result.fun)
+                            triali.append(i)
+                            trialj.append(j)
+                            vals.append(result.x)
+                            stoploop=True
+                            break
         elif self.coordtype==0 and not forcegrid:
             """ modify grid of one radial coordinates to make mass weighting equal"""
             c=[self.maxval, self.minval]
@@ -115,8 +132,9 @@ class q:
                 minbnds=(multiply(self.maxval,0.9),multiply(self.minval,0.9))
                 maxbnds=(multiply(self.maxval,1.1),multiply(self.minval,1.1))
             bnds=list(zip(minbnds,maxbnds))
-            for i in range(mini,maxi, 1):
-                for j in range(minj,maxj, 1):
+            mingridsolutionfound=False
+            for i in range(self.numpoints,mini, -1):
+                for j in range(q_other.numpoints,minj, -1):
                     result=minimize(frang,c,args=(m1,m2,q2range,i,j),bounds=bnds)
                     result.fun=frang(result.x,m1,m2,q2range,i,j)
                     if result.fun<1e-07:
@@ -124,6 +142,19 @@ class q:
                         triali.append(i)
                         trialj.append(j)
                         vals.append(result.x)
+                        mingridsolutionfound=True
+            stoploop=False
+            if not mingridsolutionfound:
+                for i in range(self.numpoints,maxi, 1):
+                    for j in range(q_other.numpoints,maxj, 1):
+                        result=minimize(frang,c,args=(m1,m2,q2range,i,j),bounds=bnds)
+                        result.fun=frang(result.x,m1,m2,q2range,i,j)
+                        if result.fun<1e-07:
+                            trialval.append(result.fun)
+                            triali.append(i)
+                            trialj.append(j)
+                            vals.append(result.x)
+                            stoploop=True
         elif q_other.coordtype==0 and not forcegrid:
             """ modify grid of one radial coordinates to make mass weighting equal"""
             c=[q_other.maxval ,q_other.minval]
@@ -135,8 +166,9 @@ class q:
                 maxbnds=(multiply(q_other.maxval,1.1),multiply(q_other.minval,1.1))
             q1range=subtract(self.maxval,self.minval)
             bnds=list(zip(minbnds,maxbnds))
-            for i in range(mini,maxi, 1):
-                for j in range(minj,maxj, 1):
+            mingridsolutionfound=False
+            for i in range(self.numpoints,mini, -1):
+                for j in range(q_other.numpoints,minj, -1):
                     """ i and j are reversed to keep things consistent below"""
                     result=minimize(frang,c,args=(m2,m1,q1range,j,i),bounds=bnds)
                     result.fun=frang(result.x,m2,m1,q1range,j,i)
@@ -145,25 +177,54 @@ class q:
                         triali.append(i)
                         trialj.append(j)
                         vals.append(result.x)
+                        mingridsolutionfound=True
+            stoploop=False
+            if not mingridsolutionfound:
+                for i in range(self.numpoints,maxi, 1):
+                    if stoploop:
+                        break
+                    for j in range(q_other.numpoints,maxj, 1):
+                        """ i and j are reversed to keep things consistent below"""
+                        result=minimize(frang,c,args=(m2,m1,q1range,j,i),bounds=bnds)
+                        result.fun=frang(result.x,m2,m1,q1range,j,i)
+                        if less(result.fun,1e-07):
+                            trialval.append(result.fun)
+                            triali.append(i)
+                            trialj.append(j)
+                            vals.append(result.x)
+                            stoploop=True
+                            break
         else:
             """ modify number of points in grid to make mass weighting equal"""
             q1range=subtract(self.maxval,self.minval)
             q2range=subtract(q_other.maxval,q_other.minval)
-            for i in range(mini,maxi, 1):
-                for j in range(minj,maxj, 1):
+            mingridsolutionfound=False
+            for i in range(self.numpoints,mini, -1):
+                for j in range(q_other.numpoints,minj, -1):
                     val1= fangang(m1,m2,q1range,q2range,i,j)
                     if val1<1e-07:
                         trialval.append(val1)
                         triali.append(i)
                         trialj.append(j)
-        print('{0} potential solutions found'.format(len(triali)))
-#        print(triali)
-#        print(trialj)
+                        mingridsolutionfound=True
+            stoploop=False
+            if not mingridsolutionfound:
+                for i in range(self.numpoints,maxi, 1):
+                    if stoploop:
+                        break
+                    for j in range(q_other.numpoints,minj, -1):
+                        val1= fangang(m1,m2,q1range,q2range,i,j)
+                        if val1<1e-07:
+                            trialval.append(val1)
+                            triali.append(i)
+                            trialj.append(j)
+                            stoploop=True
+                            break
         if len(triali)==1:
             autoselect=True
         if len(triali)>=1:
             if autoselect:
-                if mingrid:
+                if mingrid or uselowest:
                     diffofgrid=add(self.numpoints,q_other.numpoints)
                 else:
                     diffofgrid=add(abs(subtract(array(triali),self.numpoints)),abs(subtract(array(trialj),q_other.numpoints)))
@@ -281,7 +342,7 @@ def roundmasstoequal(mass=[],sigfigs=3,dq1=0.01,dq2=0.01):
     mass[1] = round_to_n(c[1],sigfigs)
     return mass
 
-def silentmweq(inpcoord=[],mingrid=False):
+def silentmweq(inpcoord=[],mingrid=False,uselowest=False):
     """ symmetry equivalence coords
     Input list of coordinates
     nested in each list is [maxval,minval,coordtype (0,1,2) for (r,theta,phi), number of points]
@@ -299,7 +360,7 @@ def silentmweq(inpcoord=[],mingrid=False):
         dq1=subtract(coord[0].grid[1],coord[0].grid[0])
         dq2=subtract(coord[1].grid[1],coord[1].grid[0])
         if not massweightequal(dq1,coord[0].mass,dq2,coord[1].mass) or mingrid:
-            coord[0].equivalencemwcoords(coord[1],innerbound=True,autoselect=True,forcegrid=False,mingrid=mingrid)
+            coord[0].equivalencemwcoords(coord[1],innerbound=True,autoselect=True,forcegrid=False,mingrid=mingrid,uselowest=uselowest)
             dq1=subtract(coord[0].grid[1],coord[0].grid[0])
             dq2=subtract(coord[1].grid[1],coord[1].grid[0])
             if not massweightequal(dq1,coord[0].mass,dq2,coord[1].mass,printerrors=True):

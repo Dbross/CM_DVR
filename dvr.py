@@ -53,6 +53,8 @@ class potential:
         self.plotit=False
         self.print2ndderiv=False
         self.printeigenval=True
+        self.useprevpoint=False
+        self.prevpoints=[]
 
     def readpotential(self,inp):
         #potential should have coordinate and units as main input
@@ -389,10 +391,16 @@ class potential:
         mw1=mwspace(coordtype=coordtypes[0],rlen=rlen0,mass=mass[0],pts=pts[0])
         mw2=mwspace(coordtype=coordtypes[1],rlen=rlen1,mass=mass[1],pts=pts[1])
         if np.abs(np.subtract(mw1,mw2))>1.0E-07 or self.mingrid:
+            if self.useprevpoint:
+                pts[0]=self.prevpoints[0]
+                pts[1]=self.prevpoints[1]
+        mw1=mwspace(coordtype=coordtypes[0],rlen=rlen0,mass=mass[0],pts=pts[0])
+        mw2=mwspace(coordtype=coordtypes[1],rlen=rlen1,mass=mass[1],pts=pts[1])
+        if np.abs(np.subtract(mw1,mw2))>1.0E-07 or self.mingrid:
             """ Adjust potential to have equal massweighted spacing"""
             print('Mass weighting unequal, adjusting grid\n OLD: {0:.4f}-{1:.4f} pts {2} {3:.4f}-{4:.4f} pts {5}'\
                     .format(float(qmin0),float(qmax0),int(pts[0]),float(qmin1),float(qmax1),int(pts[1])))
-            a=silentmweq([ [qmax0,qmin0,coordtypes[0],pts[0],mass[0]], [qmax1,qmin1,coordtypes[1],pts[1],mass[1]] ],mingrid=self.mingrid)
+            a=silentmweq([ [qmax0,qmin0,coordtypes[0],pts[0],mass[0]], [qmax1,qmin1,coordtypes[1],pts[1],mass[1]] ],mingrid=self.mingrid,uselowest=self.useprevpoint)
             """ It is possible to override points and grid to be fit to here... Thinking about adding a manual option but unsure why I'd do that..."""
             qmax0,qmin0,pts[0]=np.max(a[0].grid),np.min(a[0].grid),a[0].numpoints
             qmax1,qmin1,pts[1]=np.max(a[1].grid),np.min(a[1].grid),a[1].numpoints
@@ -425,6 +433,8 @@ class potential:
                 exit('fit potential outside bounds')
 #            mass= roundmasstoequal(mass=mass,sigfigs=sigfigs,dq1=np.divide(mw1,mass[0]),dq2=np.divide(mw2,mass[1]))
 #            print('using {2} sig figs of reduced mass of [{0:.{3}e}, {1:.{3}e}] amu.'.format(float(mass[0]),float(mass[1]),sigfigs,sigfigs-1))
+            self.useprevpoint=True
+            self.prevpoints=pts
             Ham=H_array(pts=pts,mass=mass,V=np.ndarray.flatten(vfit),qmax=[qmax0,qmax1],qmin=[qmin0,qmin1],coordtype=coordtypes)
         else:   
 #            mass= roundmasstoequal(mass=mass,sigfigs=sigfigs,dq1=np.divide(mw1,mass[0]),dq2=np.divide(mw2,mass[1]))
