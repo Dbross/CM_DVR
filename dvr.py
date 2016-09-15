@@ -337,7 +337,7 @@ class potential:
         from scipy.interpolate import griddata
         from potgen import silentmweq, roundmasstoequal
         if self.preplot:
-            plot2d(r[0],r[1],Energies,wavenumber=True,title='Potential Energy Contours',block=True,includegrid=True)
+            plot2d(r[0],r[1],Energies,wavenumber=True,title='Potential Energy Contours',block=True,includegrid=False)
         sigfigs=4
         qmin0 =np.copy(np.min(r[0]))
         qmax0 =np.copy(np.max(r[0]) )
