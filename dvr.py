@@ -337,7 +337,7 @@ class potential:
         from scipy.interpolate import griddata
         from potgen import silentmweq, roundmasstoequal
         if self.preplot:
-            plot2d(r[0],r[1],Energies,wavenumber=True,title='Potential Energy Contours',block=True,includegrid=True)
+            plot2d(r[0],r[1],Energies,wavenumber=True,title='Potential Energy Contours',block=True,includegrid=False,wavenumbercutoff=400)
         sigfigs=4
         qmin0 =np.copy(np.min(r[0]))
         qmax0 =np.copy(np.max(r[0]) )
@@ -536,7 +536,7 @@ def plot2dgrid(x,y,z,wavenumber=False,angular=False,norm=False,block=False,legen
     else:
         plt.savefig(save)
 
-def plot2d(x,y,z,wavenumber=False,angular=True,norm=False,block=False,legend=True,includegrid=False,title='2d filled contour plot',save='tmp.pdf'):
+def plot2d(x,y,z,wavenumber=False,wavenumbercutoff=10000,angular=True,norm=False,block=False,legend=True,includegrid=False,title='2d filled contour plot',save='tmp.pdf'):
     """ Flat x,y,z as input"""
     import numpy as np
     import matplotlib.mlab as ml
@@ -548,7 +548,8 @@ def plot2d(x,y,z,wavenumber=False,angular=True,norm=False,block=False,legend=Tru
     if wavenumber:
         z=np.subtract(z,np.min(z))
         z=z*219474.6313717 
-        levs=range(0,10000,100)
+        levs=range(0,wavenumbercutoff,int(min(100,wavenumbercutoff/50)))
+#        levs=range(0,wavenumbercutoff,100)
     else:
         levs=np.linspace(float(np.min(z)),float(np.max(z)),100)
     xlen=len(set(x))
