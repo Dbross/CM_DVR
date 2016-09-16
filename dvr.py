@@ -578,6 +578,11 @@ def plot2d(x,y,z,wavenumber=False,wavenumbercutoff=10000,angular=True,norm=False
         plt.savefig(save)
         plt.close()
 
+def H_array_petsc(pts=5,coordtype=['r'],mass=[0.5],qmin=[1.0],qmax=[2.0],V=[]):
+    import sys, slepc4py
+    slepc4py.init(sys.argv)
+
+
 def H_array(pts=5,coordtype=['r'],mass=[0.5],qmin=[1.0],qmax=[2.0],V=[]):
     """ input 
     pts=points , coordtype (dict values r, phi, theta), qmin=list(qminimia), qmax=list(qmaxima), V=potential
