@@ -77,7 +77,7 @@ class q:
         trialj=[]
         vals=[]
         mini, maxi,minj,maxj =int(round(0.5*self.numpoints)),self.numpoints*50, int(round(0.5*q_other.numpoints)),q_other.numpoints*50
-        is uselowest:
+        if uselowest:
             mini, minj =min(mini,21), min(minj,21)
         if mingrid:
             mini, maxi =min(21,int(self.numpoints*0.5)),self.numpoints+1,
