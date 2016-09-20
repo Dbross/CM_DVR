@@ -102,6 +102,12 @@ class potential:
                             self.coordtypes.append(y)
                 elif 'preplot' in x.lower():
                     self.preplot=True
+                    self.preplotval=re.findall(r'\b\d+\b', x)
+                    if len(self.preplotval)>=1:
+                        for x in range(len(self.preplotval)):
+                            self.preplotval[x]=int(self.preplotval[x])
+                    else:
+                        self.preplotval=[int(2000)]
                 elif 'plotit' in x.lower():
                     self.plotit=True
                 elif 'mingrid' in x.lower():
@@ -337,7 +343,11 @@ class potential:
         from scipy.interpolate import griddata
         from potgen import silentmweq, roundmasstoequal
         if self.preplot:
-            plot2d(r[0],r[1],Energies,wavenumber=True,title='Potential Energy Contours',block=True,includegrid=False,wavenumbercutoff=400)
+            for x in range(len(self.preplotval)):
+                if x==len(self.preplotval)-1:
+                    plot2d(r[0],r[1],Energies,wavenumber=True,title='Potential Energy Contours',block=True,includegrid=False,wavenumbercutoff=self.preplotval[x])
+                else:
+                    plot2d(r[0],r[1],Energies,wavenumber=True,title='Potential Energy Contours',block=False,includegrid=False,wavenumbercutoff=self.preplotval[x])
         sigfigs=4
         qmin0 =np.copy(np.min(r[0]))
         qmax0 =np.copy(np.max(r[0]) )
