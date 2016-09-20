@@ -55,6 +55,7 @@ class potential:
         self.printeigenval=True
         self.useprevpoint=False
         self.prevpoints=[]
+        self.petsc=False
 
     def readpotential(self,inp):
         #potential should have coordinate and units as main input
@@ -110,6 +111,8 @@ class potential:
                         self.preplotval=[int(2000)]
                 elif 'plotit' in x.lower():
                     self.plotit=True
+                elif 'petsc' in x.lower():
+                    self.petsc=True
                 elif 'mingrid' in x.lower():
                     self.mingrid=True
                 elif 'printderiv' in x.lower():
@@ -445,20 +448,30 @@ class potential:
 #            print('using {2} sig figs of reduced mass of [{0:.{3}e}, {1:.{3}e}] amu.'.format(float(mass[0]),float(mass[1]),sigfigs,sigfigs-1))
             self.useprevpoint=True
             self.prevpoints=pts
-            Ham=H_array(pts=pts,mass=mass,V=np.ndarray.flatten(vfit),qmax=[qmax0,qmax1],qmin=[qmin0,qmin1],coordtype=coordtypes)
+            if self.petsc:
+                eigenval=H_array_petsc(pts=pts,mass=mass,V=np.ndarray.flatten(vfit),\
+                        qmax=[qmax0,qmax1],qmin=[qmin0,qmin1],coordtype=coordtypes)
+            else:
+                Ham=H_array(pts=pts,mass=mass,V=np.ndarray.flatten(vfit),\
+                        qmax=[qmax0,qmax1],qmin=[qmin0,qmin1],coordtype=coordtypes)
+                eigenval, eigenvec=np.linalg.eig(Ham)
         else:   
 #            mass= roundmasstoequal(mass=mass,sigfigs=sigfigs,dq1=np.divide(mw1,mass[0]),dq2=np.divide(mw2,mass[1]))
 #            print('using {2} sig figs of reduced mass of [{0:.{3}e}, {1:.{3}e}] amu.'.format(float(mass[0]),float(mass[1]),sigfigs,sigfigs-1))
-            Ham=H_array(pts=pts,mass=mass,V=Energies,qmax=np.amax(r,axis=1),qmin=np.amin(r,axis=1),coordtype=coordtypes)
-        eigenval, eigenvec=np.linalg.eig(Ham)
+            if self.petsc:
+                eigenval=H_array_petsc(pts=pts,mass=mass,V=Energies,qmax=np.amax(r,axis=1),qmin=np.amin(r,axis=1),coordtype=coordtypes)
+            else:
+                Ham=H_array(pts=pts,mass=mass,V=Energies,qmax=np.amax(r,axis=1),qmin=np.amin(r,axis=1),coordtype=coordtypes)
+                eigenval, eigenvec=np.linalg.eig(Ham)
         self.eigenval=eigenval.real.astype(eval(numpy_precision))
         eindex=np.argsort(eigenval)
-        self.eigenval, eigenvec= eigenval[eindex], np.transpose(eigenvec[:,eindex])
+        if not self.petsc:
+            self.eigenval, eigenvec= eigenval[eindex], np.transpose(eigenvec[:,eindex])
 #        from scipy.sparse.linalg import eigs
         """ Sparse solver doesn't give speedup for computing eigenvalues of all solutions.... """
 #       eigenval, eigenvec=eigs(Ham,k=int((pts[0]*pts[1])-2),sigma=0,M=None,which='LM')
         Esort=np.multiply(self.eigenval,hartreetocm)
-        if saveeigen:
+        if saveeigen and not self.petsc:
             eigfile='tmp.eig.h5'
             from os.path import isfile
             if isfile(eigfile):
@@ -480,7 +493,7 @@ class potential:
                 f.create_dataset('eigenvec',data=eigenvec)
                 f.create_dataset('eigenval',data=self.eigenval)
                 f.close()
-        if self.plotit:
+        if self.plotit and not self.petsc:
             if np.abs(np.subtract(mw1,mw2))>1.0E-07 or self.mingrid:
                 plot2dgrid(grid_x,grid_y,vfit,wavenumber=True,title='Potential Energy Contours')
                 eigenvectoplot=(int(input('number of eigenvectors to plot:')))
@@ -593,7 +606,7 @@ def H_array_petsc(pts=5,coordtype=['r'],mass=[0.5],qmin=[1.0],qmax=[2.0],V=[]):
     slepc4py.init(sys.argv)
     from petsc4py import PETSc
     from slepc4py import SLEPc
-    import numpy
+    import numpy as np
     opts=PETSc.Options()
     ncoord=len(coordtype)
     totpts=1
@@ -635,14 +648,79 @@ def H_array_petsc(pts=5,coordtype=['r'],mass=[0.5],qmin=[1.0],qmax=[2.0],V=[]):
 #                ,np.arange(ptspercoord),np.arange(ptspercoord))).T.reshape(-1,6)
     indices=np.array(np.split(indices,ncoord*2,axis=1),dtype=eval(inttype))
     k=0
-    for i in range(rstart,rend):
-        for j in range(rstart,rend):
-            pass
-#    if ncoord==1:
+    if ncoord==1:
+        for i in range(rstart,rend):
+            for j in range(rstart,rend):
+                if i==j:
+                    A[i,i] =np.add(D1[i,j],V[i])
+                else:
+                    A[i,j]=D1[i,j]
+    elif ncoord==2:
+        totiter=(rend-rstart)**2
+        ijindex=np.zeros((totiter,2),dtype=np.uint64)
+        iter=0
+        while iter<totiter:
+            for i in range(rstart,rend):
+                for j in range(rstart,rend):
+                    ijindex[iter,0]=i
+                    ijindex[iter,1]=j
+                    iter+=1
+        iter=0
+        while iter<totiter:
+            if np.equal(indices[0,iter],indices[3,iter]):
+                if np.equal(indices[1,iter],indices[2,iter] ):
+                    A[ijindex[iter]]=np.add(np.add(D1[indices[0,iter],indices[3,iter]], D2[indices[1,iter],indices[2,iter]]),V[k])
+                    k+=1
+                else:
+                    A[ijindex[iter]]=D2[indices[1,iter],indices[2,iter]]
+            elif np.equal(indices[1,iter],indices[2,iter] ): 
+                A[ijindex[iter]]=D1[indices[0,iter],indices[3,iter]]
+                for i in range(pts[1]-1-np.squeeze(indices[1,iter])):
+                    iter+=1
+            iter+=1
+    else:
+        raise ValueError("not implemented for %d dimensions" % (ncoord))
+    A.assemble()
+    E = SLEPc.EPS(); E.create()
+    E.setOperators(A)
+#    E.EPSSetDimensions(totiter)
+    E.setProblemType(SLEPc.EPS.ProblemType.HEP)
+    print(E.Which.all=True)
+    E.setFromOptions()
+    E.solve()
 
 
+#    Print = PETSc.Sys.Print
 
-
+#    Print("\n******************************")
+#    Print("*** SLEPc Solution Results ***")
+#    Print("******************************\n")
+    its = E.getIterationNumber()
+#    Print("Number of iterations of the method: %d" % its)
+    eps_type = E.getType()
+#    Print("Solution method: %s" % eps_type)
+    nev, ncv, mpd = E.getDimensions()
+#    Print("Number of requested eigenvalues: %d" % nev)
+    tol, maxit = E.getTolerances()
+#    Print("Stopping condition: tol=%.4g, maxit=%d" % (tol, maxit))
+    nconv = E.getConverged()
+#    Print("Number of converged eigenpairs %d" % nconv)
+    eigenval=np.zeros(nconv,dtype=np.float64)
+    if nconv > 0:
+    # Create the results vectors
+        vr, wr = A.getVecs()
+        vi, wi = A.getVecs()
+#        Print("\n        k          ||Ax-kx||/||kx|| ")
+#        Print("----------------- ------------------")
+        for i in range(nconv):
+            k = E.getEigenpair(i, vr, vi)
+            error = E.computeError(i)
+#            if k.imag != 0.0:
+#                Print(" %9f%+9f j %12g\n" % (k.real, k.imag, error))
+#            else:
+#                Print(" %12f      %12g\n" % (k.real, error))
+            eigenval[i]=k.real
+    return (eigenval)
 
 def H_array(pts=5,coordtype=['r'],mass=[0.5],qmin=[1.0],qmax=[2.0],V=[]):
     """ input 
