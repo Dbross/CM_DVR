@@ -581,6 +581,57 @@ def plot2d(x,y,z,wavenumber=False,wavenumbercutoff=10000,angular=True,norm=False
 def H_array_petsc(pts=5,coordtype=['r'],mass=[0.5],qmin=[1.0],qmax=[2.0],V=[]):
     import sys, slepc4py
     slepc4py.init(sys.argv)
+    from petsc4py import PETSc
+    from slepc4py import SLEPc
+    import numpy
+    opts=PETSc.Options()
+    ncoord=len(coordtype)
+    totpts=1
+    for x in range(len(pts)):
+        totpts=totpts*pts[x]
+    """ Following https://pythonhosted.org/slepc4py/usrman/tutorial.html"""
+    A=PETSc.Mat().create()
+    A.setSizes(totpts,totpts)
+    A.setFromOptions()
+    A.setUp()
+    rstart,rend=A.getOwnershipRange()
+    if ncoord==1:
+        qmin=[qmin]
+        qmax=[qmax]
+        D1, mw1=H_array_1d(pts[0],mass=mass[0],qmin=qmin[0],qmax=qmax[0],coordtype=coordtype[0])
+        if np.less(pts[0],255):
+            inttype='np.uint8'
+        else:
+            inttype='np.uint16'
+        indices=np.array(np.meshgrid(np.arange(pts[0]),np.arange(pts[0])),dtype=eval(inttype)).T.reshape(-1,2)
+    if ncoord==2:
+        D1, mw1=H_array_1d(pts[0],mass=mass[0],qmin=qmin[0],qmax=qmax[0],coordtype=coordtype[0])
+        D2, mw2=H_array_1d(pts[1],mass=mass[1],qmin=qmin[1],qmax=qmax[1],coordtype=coordtype[1])
+        if np.abs(np.subtract(mw1,mw2))>1.0E-07:
+            from sys import exit
+            print('mass weighted coordinate spacing unequal as specified, stopping DVR')
+            exit('mass weighted coordinate spacing unequal as specified, stopping DVR')
+        if np.less(pts[0],255) and np.less(pts[1],255):
+            inttype='np.uint8'
+        else:
+            inttype='np.uint16'
+        indices=np.array(np.meshgrid(np.arange(pts[0]),np.arange(pts[1]),np.arange(pts[1]),np.arange(pts[0])),dtype=eval(inttype)).T.reshape(-1,4)
+    if ncoord==3:
+        raise ValueError("not implemented for %d dimensions" % (ncoord))
+        D1, mw1=H_array_1d(pts[0],mass=mass[0],qmin=qmin[0],qmax=qmax[0],coordtype=coordtype[0])
+        D2, mw2=H_array_1d(pts[1],mass=mass[1],qmin=qmin[1],qmax=qmax[1],coordtype=coordtype[1])
+        D3, mw3=H_array_1d(pts[2],mass=mass[2],qmin=qmin[2],qmax=qmax[2],coordtype=coordtype[2])
+#        indices=np.array(np.meshgrid(np.arange(ptspercoord),np.arange(ptspercoord),np.arange(ptspercoord),np.arange(ptspercoord)\
+#                ,np.arange(ptspercoord),np.arange(ptspercoord))).T.reshape(-1,6)
+    indices=np.array(np.split(indices,ncoord*2,axis=1),dtype=eval(inttype))
+    k=0
+    for i in range(rstart,rend):
+        for j in range(rstart,rend):
+            pass
+#    if ncoord==1:
+
+
+
 
 
 def H_array(pts=5,coordtype=['r'],mass=[0.5],qmin=[1.0],qmax=[2.0],V=[]):
