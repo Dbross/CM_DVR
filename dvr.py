@@ -683,9 +683,9 @@ def H_array_petsc(pts=5,coordtype=['r'],mass=[0.5],qmin=[1.0],qmax=[2.0],V=[]):
     A.assemble()
     E = SLEPc.EPS(); E.create()
     E.setOperators(A)
-#    E.EPSSetDimensions(totiter)
     E.setProblemType(SLEPc.EPS.ProblemType.HEP)
-    print(E.Which.all=True)
+    E.setWhichEigenpairs(SLEPc.EPS.Which.SMALLEST_MAGNITUDE)
+    E.setDimensions(rend-rstart)
     E.setFromOptions()
     E.solve()
 
