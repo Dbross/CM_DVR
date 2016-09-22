@@ -621,7 +621,9 @@ def H_array_petsc(pts=5,coordtype=['r'],mass=[0.5],qmin=[1.0],qmax=[2.0],V=[]):
     rstart,rend=A.getOwnershipRange()
     ncoord=len(coordtype)
     if rank==0:
-        """ Following https://pythonhosted.org/slepc4py/usrman/tutorial.html"""
+        """ Following https://pythonhosted.org/slepc4py/usrman/tutorial.html
+        note that on a 10^4 matrix the construction takes 22 minutes, solving for first 3 eigenvalues is 1min
+        solving for all is 86 minutes. For optimizer I'll need to improve assembly time as well..."""
         if ncoord==1:
             qmin=[qmin]
             qmax=[qmax]
