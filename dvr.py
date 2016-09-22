@@ -606,119 +606,113 @@ def H_array_petsc(pts=5,coordtype=['r'],mass=[0.5],qmin=[1.0],qmax=[2.0],V=[]):
     slepc4py.init(sys.argv)
     from petsc4py import PETSc
     from slepc4py import SLEPc
-    import numpy as np
-    opts=PETSc.Options()
-    ncoord=len(coordtype)
     totpts=1
     for x in range(len(pts)):
         totpts=totpts*pts[x]
-    """ Following https://pythonhosted.org/slepc4py/usrman/tutorial.html"""
+    opts=PETSc.Options()
+    from mpi4py import MPI
+    import numpy as np
+    comm = MPI.COMM_WORLD
+    rank = comm.Get_rank()
     A=PETSc.Mat().create()
     A.setSizes(totpts,totpts)
     A.setFromOptions()
     A.setUp()
     rstart,rend=A.getOwnershipRange()
-    if ncoord==1:
-        qmin=[qmin]
-        qmax=[qmax]
-        D1, mw1=H_array_1d(pts[0],mass=mass[0],qmin=qmin[0],qmax=qmax[0],coordtype=coordtype[0])
-        if np.less(pts[0],255):
-            inttype='np.uint8'
+    ncoord=len(coordtype)
+    if rank==0:
+        """ Following https://pythonhosted.org/slepc4py/usrman/tutorial.html"""
+        if ncoord==1:
+            qmin=[qmin]
+            qmax=[qmax]
+            D1, mw1=H_array_1d(pts[0],mass=mass[0],qmin=qmin[0],qmax=qmax[0],coordtype=coordtype[0])
+            if np.less(pts[0],255):
+                inttype='np.uint8'
+            else:
+                inttype='np.uint16'
+            indices=np.array(np.meshgrid(np.arange(pts[0]),np.arange(pts[0])),dtype=eval(inttype)).T.reshape(-1,2)
+        if ncoord==2:
+            D1, mw1=H_array_1d(pts[0],mass=mass[0],qmin=qmin[0],qmax=qmax[0],coordtype=coordtype[0])
+            D2, mw2=H_array_1d(pts[1],mass=mass[1],qmin=qmin[1],qmax=qmax[1],coordtype=coordtype[1])
+            if np.abs(np.subtract(mw1,mw2))>1.0E-07:
+                from sys import exit
+                print('mass weighted coordinate spacing unequal as specified, stopping DVR')
+                exit('mass weighted coordinate spacing unequal as specified, stopping DVR')
+            if np.less(pts[0],255) and np.less(pts[1],255):
+                inttype='np.uint8'
+            else:
+                inttype='np.uint16'
+            indices=np.array(np.meshgrid(np.arange(pts[0]),np.arange(pts[1]),np.arange(pts[1]),np.arange(pts[0])),dtype=eval(inttype)).T.reshape(-1,4)
+        if ncoord==3:
+            raise ValueError("not implemented for %d dimensions" % (ncoord))
+            D1, mw1=H_array_1d(pts[0],mass=mass[0],qmin=qmin[0],qmax=qmax[0],coordtype=coordtype[0])
+            D2, mw2=H_array_1d(pts[1],mass=mass[1],qmin=qmin[1],qmax=qmax[1],coordtype=coordtype[1])
+            D3, mw3=H_array_1d(pts[2],mass=mass[2],qmin=qmin[2],qmax=qmax[2],coordtype=coordtype[2])
+#            indices=np.array(np.meshgrid(np.arange(ptspercoord),np.arange(ptspercoord),np.arange(ptspercoord),np.arange(ptspercoord)\
+#                    ,np.arange(ptspercoord),np.arange(ptspercoord))).T.reshape(-1,6)
+        indices=np.array(np.split(indices,ncoord*2,axis=1),dtype=eval(inttype))
+        k=0
+        if ncoord==1:
+            for i in range(totpts):
+                for j in range(totpts):
+                    if i==j:
+                        A[i,i] =np.add(D1[i,j],V[i])
+                    else:
+                        A[i,j]=D1[i,j]
+        elif ncoord==2:
+            totiter=(totpts)**2
+            ijindex=np.zeros((totiter,2),dtype=np.uint64)
+            iter=0
+            while iter<totiter:
+                for i in range(totpts):
+                    for j in range(totpts):
+                        ijindex[iter,0]=i
+                        ijindex[iter,1]=j
+                        iter+=1
+            iter=0
+            while iter<totiter:
+                if np.equal(indices[0,iter],indices[3,iter]):
+                    if np.equal(indices[1,iter],indices[2,iter] ):
+                        A[ijindex[iter]]=np.add(np.add(D1[indices[0,iter],indices[3,iter]], D2[indices[1,iter],indices[2,iter]]),V[k])
+                        k+=1
+                    else:
+                        A[ijindex[iter]]=D2[indices[1,iter],indices[2,iter]]
+                elif np.equal(indices[1,iter],indices[2,iter] ): 
+                    A[ijindex[iter]]=D1[indices[0,iter],indices[3,iter]]
+                    for i in range(pts[1]-1-np.squeeze(indices[1,iter])):
+                        iter+=1
+                iter+=1
         else:
-            inttype='np.uint16'
-        indices=np.array(np.meshgrid(np.arange(pts[0]),np.arange(pts[0])),dtype=eval(inttype)).T.reshape(-1,2)
-    if ncoord==2:
-        D1, mw1=H_array_1d(pts[0],mass=mass[0],qmin=qmin[0],qmax=qmax[0],coordtype=coordtype[0])
-        D2, mw2=H_array_1d(pts[1],mass=mass[1],qmin=qmin[1],qmax=qmax[1],coordtype=coordtype[1])
-        if np.abs(np.subtract(mw1,mw2))>1.0E-07:
-            from sys import exit
-            print('mass weighted coordinate spacing unequal as specified, stopping DVR')
-            exit('mass weighted coordinate spacing unequal as specified, stopping DVR')
-        if np.less(pts[0],255) and np.less(pts[1],255):
-            inttype='np.uint8'
-        else:
-            inttype='np.uint16'
-        indices=np.array(np.meshgrid(np.arange(pts[0]),np.arange(pts[1]),np.arange(pts[1]),np.arange(pts[0])),dtype=eval(inttype)).T.reshape(-1,4)
-    if ncoord==3:
-        raise ValueError("not implemented for %d dimensions" % (ncoord))
-        D1, mw1=H_array_1d(pts[0],mass=mass[0],qmin=qmin[0],qmax=qmax[0],coordtype=coordtype[0])
-        D2, mw2=H_array_1d(pts[1],mass=mass[1],qmin=qmin[1],qmax=qmax[1],coordtype=coordtype[1])
-        D3, mw3=H_array_1d(pts[2],mass=mass[2],qmin=qmin[2],qmax=qmax[2],coordtype=coordtype[2])
-#        indices=np.array(np.meshgrid(np.arange(ptspercoord),np.arange(ptspercoord),np.arange(ptspercoord),np.arange(ptspercoord)\
-#                ,np.arange(ptspercoord),np.arange(ptspercoord))).T.reshape(-1,6)
-    indices=np.array(np.split(indices,ncoord*2,axis=1),dtype=eval(inttype))
-    k=0
-    if ncoord==1:
-        for i in range(rstart,rend):
-            for j in range(rstart,rend):
-                if i==j:
-                    A[i,i] =np.add(D1[i,j],V[i])
-                else:
-                    A[i,j]=D1[i,j]
-    elif ncoord==2:
-        totiter=(rend-rstart)**2
-        ijindex=np.zeros((totiter,2),dtype=np.uint64)
-        iter=0
-        while iter<totiter:
-            for i in range(rstart,rend):
-                for j in range(rstart,rend):
-                    ijindex[iter,0]=i
-                    ijindex[iter,1]=j
-                    iter+=1
-        iter=0
-        while iter<totiter:
-            if np.equal(indices[0,iter],indices[3,iter]):
-                if np.equal(indices[1,iter],indices[2,iter] ):
-                    A[ijindex[iter]]=np.add(np.add(D1[indices[0,iter],indices[3,iter]], D2[indices[1,iter],indices[2,iter]]),V[k])
-                    k+=1
-                else:
-                    A[ijindex[iter]]=D2[indices[1,iter],indices[2,iter]]
-            elif np.equal(indices[1,iter],indices[2,iter] ): 
-                A[ijindex[iter]]=D1[indices[0,iter],indices[3,iter]]
-                for i in range(pts[1]-1-np.squeeze(indices[1,iter])):
-                    iter+=1
-            iter+=1
-    else:
-        raise ValueError("not implemented for %d dimensions" % (ncoord))
+            raise ValueError("not implemented for %d dimensions" % (ncoord))
     A.assemble()
     E = SLEPc.EPS(); E.create()
     E.setOperators(A)
     E.setProblemType(SLEPc.EPS.ProblemType.HEP)
     E.setWhichEigenpairs(SLEPc.EPS.Which.SMALLEST_MAGNITUDE)
-    E.setDimensions(rend-rstart)
+    E.setDimensions(6)
+#    E.setDimensions(totpts)
     E.setFromOptions()
     E.solve()
+    E.view()
 
 
-#    Print = PETSc.Sys.Print
 
-#    Print("\n******************************")
-#    Print("*** SLEPc Solution Results ***")
-#    Print("******************************\n")
+    Print = PETSc.Sys.Print
+
     its = E.getIterationNumber()
-#    Print("Number of iterations of the method: %d" % its)
+    Print("Number of iterations of the method: %d" % its)
     eps_type = E.getType()
-#    Print("Solution method: %s" % eps_type)
+    Print("Solution method: %s" % eps_type)
     nev, ncv, mpd = E.getDimensions()
-#    Print("Number of requested eigenvalues: %d" % nev)
     tol, maxit = E.getTolerances()
-#    Print("Stopping condition: tol=%.4g, maxit=%d" % (tol, maxit))
     nconv = E.getConverged()
-#    Print("Number of converged eigenpairs %d" % nconv)
     eigenval=np.zeros(nconv,dtype=np.float64)
     if nconv > 0:
-    # Create the results vectors
         vr, wr = A.getVecs()
         vi, wi = A.getVecs()
-#        Print("\n        k          ||Ax-kx||/||kx|| ")
-#        Print("----------------- ------------------")
         for i in range(nconv):
             k = E.getEigenpair(i, vr, vi)
             error = E.computeError(i)
-#            if k.imag != 0.0:
-#                Print(" %9f%+9f j %12g\n" % (k.real, k.imag, error))
-#            else:
-#                Print(" %12f      %12g\n" % (k.real, error))
             eigenval[i]=k.real
     return (eigenval)
 
@@ -960,6 +954,7 @@ def main():
     constants(CODATA_year=2010)
     import numpy as np
     import sys
+
     """ overloaded call... I may split this out later"""
     if len(sys.argv)>1 and 'h5' in sys.argv[1]:
         if len(sys.argv)>2:
@@ -972,13 +967,16 @@ def main():
             pot.readpotential(inp=sys.argv[1])
         else:
             pot.readpotential(inp=input('Give the file with the potential: '))
-#        pot.xlsx()
-#        pot.fit1dpot()
+#    pot.xlsx()
+#    pot.fit1dpot()
         pot.solve()
-        if len(pot.fiteignum)>0:
-            pot.fitfundamental()
-        if pot.printeigenval==True:
-            pot.printeigenvals()
+    from mpi4py import MPI
+    comm = MPI.COMM_WORLD
+    rank = comm.Get_rank()
+    if len(pot.fiteignum)>0 and rank==0:
+        pot.fitfundamental()
+    if pot.printeigenval==True and rank==0:
+        pot.printeigenvals()
 
 # jacobian stuff
 #    A = array([[2.0,1.0],[5.0,7.0]])
