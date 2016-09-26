@@ -615,11 +615,12 @@ def H_array_petsc(pts=5,coordtype=['r'],mass=[0.5],qmin=[1.0],qmax=[2.0],V=[]):
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
     A=PETSc.Mat().create()
-    A.setType('aij')
-    A.setSizes(totpts,totpts)
+    A.setType('mpisbaij')
+    A.setSizes([(None,totpts),(None,totpts)])
     A.setFromOptions()
     A.setUp()
     rstart,rend=A.getOwnershipRange()
+    print(rank,rstart,rend)
     ncoord=len(coordtype)
     if rank==0:
         """ Following https://pythonhosted.org/slepc4py/usrman/tutorial.html
