@@ -665,6 +665,7 @@ def H_array_petsc(pts=5,coordtype=['r'],mass=[0.5],qmin=[1.0],qmax=[2.0],V=[]):
     elif ncoord==2:
         D1add=np.equal(indices[0,:],indices[3,:])
         D2add=np.equal(indices[1,:],indices[2,:])
+        print(D1add.shape,D2add.shape)
         ijrange=np.squeeze(np.where(np.logical_or(D1add,D2add))[0])
         ijindex=np.array(np.meshgrid(np.arange(totpts),np.arange(totpts)),dtype=np.uint64).T.reshape(-1,2)
         for x in np.nditer(ijrange):
