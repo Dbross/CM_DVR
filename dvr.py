@@ -619,72 +619,65 @@ def H_array_petsc(pts=5,coordtype=['r'],mass=[0.5],qmin=[1.0],qmax=[2.0],V=[]):
     A.setSizes([(None,totpts),(None,totpts)])
     A.setFromOptions()
     A.setUp()
+    diagvec=PETSc.Vec().createSeq(V.shape[0])
+    diagvec.setValues(range(V.shape[0]),V)
+    A.setDiagonal(diagvec)
     rstart,rend=A.getOwnershipRange()
-    print(rank,rstart,rend)
     ncoord=len(coordtype)
-    if rank==0:
-        """ Following https://pythonhosted.org/slepc4py/usrman/tutorial.html
-        note that on a 10^4 matrix the construction takes 22 minutes, solving for first 3 eigenvalues is 1min
-        solving for all is 86 minutes. For optimizer I'll need to improve assembly time as well..."""
-        if ncoord==1:
-            qmin=[qmin]
-            qmax=[qmax]
-            D1, mw1=H_array_1d(pts[0],mass=mass[0],qmin=qmin[0],qmax=qmax[0],coordtype=coordtype[0])
-            if np.less(pts[0],255):
-                inttype='np.uint8'
-            else:
-                inttype='np.uint16'
-            indices=np.array(np.meshgrid(np.arange(pts[0]),np.arange(pts[0])),dtype=eval(inttype)).T.reshape(-1,2)
-        if ncoord==2:
-            D1, mw1=H_array_1d(pts[0],mass=mass[0],qmin=qmin[0],qmax=qmax[0],coordtype=coordtype[0])
-            D2, mw2=H_array_1d(pts[1],mass=mass[1],qmin=qmin[1],qmax=qmax[1],coordtype=coordtype[1])
-            if np.abs(np.subtract(mw1,mw2))>1.0E-07:
-                from sys import exit
-                print('mass weighted coordinate spacing unequal as specified, stopping DVR')
-                exit('mass weighted coordinate spacing unequal as specified, stopping DVR')
-            if np.less(pts[0],255) and np.less(pts[1],255):
-                inttype='np.uint8'
-            else:
-                inttype='np.uint16'
-            indices=np.array(np.meshgrid(np.arange(pts[0]),np.arange(pts[1]),np.arange(pts[1]),np.arange(pts[0])),dtype=eval(inttype)).T.reshape(-1,4)
-        if ncoord==3:
-            raise ValueError("not implemented for %d dimensions" % (ncoord))
-            D1, mw1=H_array_1d(pts[0],mass=mass[0],qmin=qmin[0],qmax=qmax[0],coordtype=coordtype[0])
-            D2, mw2=H_array_1d(pts[1],mass=mass[1],qmin=qmin[1],qmax=qmax[1],coordtype=coordtype[1])
-            D3, mw3=H_array_1d(pts[2],mass=mass[2],qmin=qmin[2],qmax=qmax[2],coordtype=coordtype[2])
-#            indices=np.array(np.meshgrid(np.arange(ptspercoord),np.arange(ptspercoord),np.arange(ptspercoord),np.arange(ptspercoord)\
-#                    ,np.arange(ptspercoord),np.arange(ptspercoord))).T.reshape(-1,6)
-        indices=np.array(np.split(indices,ncoord*2,axis=1),dtype=eval(inttype))
-        k=0
-        if ncoord==1:
-            for i in range(totpts):
-                for j in range(totpts):
-                    if i==j:
-                        A[i,i] =np.add(D1[i,j],V[i])
-                    else:
-                        A[i,j]=D1[i,j]
-        elif ncoord==2:
-            D1add=np.equal(indices[0,:],indices[3,:])
-            D2add=np.equal(indices[1,:],indices[2,:])
-            print(D1add)
-            from sys import exit
-            exit()
-            totiter=(totpts)**2
-            iter=0
-            while iter<totiter:
-                if np.equal(indices[0,iter],indices[3,iter]):
-                    if np.equal(indices[1,iter],indices[2,iter] ):
-                        A[ijindex[iter]]=np.add(np.add(D1[indices[0,iter],indices[3,iter]], D2[indices[1,iter],indices[2,iter]]),V[k])
-                        k+=1
-                    else:
-                        A[ijindex[iter]]=D2[indices[1,iter],indices[2,iter]]
-                elif np.equal(indices[1,iter],indices[2,iter] ): 
-                    A[ijindex[iter]]=D1[indices[0,iter],indices[3,iter]]
-                    for i in range(pts[1]-1-np.squeeze(indices[1,iter])):
-                        iter+=1
-                iter+=1
+    """ Following https://pythonhosted.org/slepc4py/usrman/tutorial.html
+    note that on a 10^4 matrix the construction takes 22 minutes, solving for first 3 eigenvalues is 1min
+    solving for all is 86 minutes. For optimizer I'll need to improve assembly time as well..."""
+    if ncoord==1:
+        qmin=[qmin]
+        qmax=[qmax]
+        D1, mw1=H_array_1d(pts[0],mass=mass[0],qmin=qmin[0],qmax=qmax[0],coordtype=coordtype[0])
+        if np.less(pts[0],255):
+            inttype='np.uint8'
         else:
-            raise ValueError("not implemented for %d dimensions" % (ncoord))
+            inttype='np.uint16'
+        indices=np.array(np.meshgrid(np.arange(pts[0]),np.arange(pts[0])),dtype=eval(inttype)).T.reshape(-1,2)
+    if ncoord==2:
+        D1, mw1=H_array_1d(pts[0],mass=mass[0],qmin=qmin[0],qmax=qmax[0],coordtype=coordtype[0])
+        D2, mw2=H_array_1d(pts[1],mass=mass[1],qmin=qmin[1],qmax=qmax[1],coordtype=coordtype[1])
+        if np.abs(np.subtract(mw1,mw2))>1.0E-07:
+            from sys import exit
+            print('mass weighted coordinate spacing unequal as specified, stopping DVR')
+            exit('mass weighted coordinate spacing unequal as specified, stopping DVR')
+        if np.less(pts[0],255) and np.less(pts[1],255):
+            inttype='np.uint8'
+        else:
+            inttype='np.uint16'
+        indices=np.array(np.meshgrid(np.arange(pts[0]),np.arange(pts[1]),np.arange(pts[1]),np.arange(pts[0])),dtype=eval(inttype)).T.reshape(-1,4)
+    if ncoord==3:
+        raise ValueError("not implemented for %d dimensions" % (ncoord))
+        D1, mw1=H_array_1d(pts[0],mass=mass[0],qmin=qmin[0],qmax=qmax[0],coordtype=coordtype[0])
+        D2, mw2=H_array_1d(pts[1],mass=mass[1],qmin=qmin[1],qmax=qmax[1],coordtype=coordtype[1])
+        D3, mw3=H_array_1d(pts[2],mass=mass[2],qmin=qmin[2],qmax=qmax[2],coordtype=coordtype[2])
+    indices=np.array(np.split(indices,ncoord*2,axis=1),dtype=eval(inttype))
+    k=0
+    if ncoord==1:
+        for i in range(rstart,rend):
+            for j in range(rstart,rend):
+                if i==j:
+                    A[i,i]=np.add(D1[i,j],A[i,i])
+                else:
+                    A[i,j]=D1[i,j]
+    elif ncoord==2:
+        D1add=np.equal(indices[0,:],indices[3,:])
+        D2add=np.equal(indices[1,:],indices[2,:])
+        ijrange=np.squeeze(np.where(np.logical_or(D1add,D2add))[0])
+        ijindex=np.array(np.meshgrid(np.arange(totpts),np.arange(totpts)),dtype=np.uint64).T.reshape(-1,2)
+        for x in np.nditer(ijrange):
+            print(x,ijindex[x])
+            if D1add[x]:
+                if D2add[x]:
+                    A[ijindex[x][0],ijindex[x][1]]=np.add(np.add(D1[indices[0,x],indices[3,x]], D2[indices[1,x],indices[2,x]]),A[ijindex[x][0],ijindex[x][0]])
+                else:
+                    A[ijindex[x][0],ijindex[x][1]]=D2[indices[1,x],indices[2,x]]
+            else:
+                A[ijindex[x][0],ijindex[x][1]]=D1[indices[0,x],indices[3,x]]
+    else:
+        raise ValueError("not implemented for %d dimensions" % (ncoord))
     A.assemble()
     E = SLEPc.EPS(); E.create()
     E.setOperators(A)
