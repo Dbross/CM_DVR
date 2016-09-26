@@ -615,6 +615,7 @@ def H_array_petsc(pts=5,coordtype=['r'],mass=[0.5],qmin=[1.0],qmax=[2.0],V=[]):
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
     A=PETSc.Mat().create()
+    A.setType('aij')
     A.setSizes(totpts,totpts)
     A.setFromOptions()
     A.setUp()
@@ -665,12 +666,11 @@ def H_array_petsc(pts=5,coordtype=['r'],mass=[0.5],qmin=[1.0],qmax=[2.0],V=[]):
             totiter=(totpts)**2
             ijindex=np.zeros((totiter,2),dtype=np.uint64)
             iter=0
-            while iter<totiter:
-                for i in range(totpts):
-                    for j in range(totpts):
-                        ijindex[iter,0]=i
-                        ijindex[iter,1]=j
-                        iter+=1
+            for i in range(totpts):
+                for j in range(totpts):
+                    ijindex[iter,0]=i
+                    ijindex[iter,1]=j
+                    iter+=1
             iter=0
             while iter<totiter:
                 if np.equal(indices[0,iter],indices[3,iter]):
