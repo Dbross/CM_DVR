@@ -664,14 +664,12 @@ def H_array_petsc(pts=5,coordtype=['r'],mass=[0.5],qmin=[1.0],qmax=[2.0],V=[]):
                     else:
                         A[i,j]=D1[i,j]
         elif ncoord==2:
+            D1add=np.equal(indices[0,:],indices[3,:])
+            D2add=np.equal(indices[1,:],indices[2,:])
+            print(D1add)
+            from sys import exit
+            exit()
             totiter=(totpts)**2
-            ijindex=np.zeros((totiter,2),dtype=np.uint64)
-            iter=0
-            for i in range(totpts):
-                for j in range(totpts):
-                    ijindex[iter,0]=i
-                    ijindex[iter,1]=j
-                    iter+=1
             iter=0
             while iter<totiter:
                 if np.equal(indices[0,iter],indices[3,iter]):
