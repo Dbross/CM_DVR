@@ -56,6 +56,7 @@ class potential:
         self.useprevpoint=False
         self.prevpoints=[]
         self.petsc=False
+        self.printpetsc=False
 
     def readpotential(self,inp):
         #potential should have coordinate and units as main input
@@ -113,6 +114,12 @@ class potential:
                     self.plotit=True
                 elif 'petsc' in x.lower():
                     self.petsc=True
+                    self.printpetsc=True
+                    self.numsol=re.findall(r'\b\d+\b', x)
+                    if len(self.numsol)>=1:
+                        self.numsol=int(self.numsol[0])
+                    else:
+                        self.numsol=6
                 elif 'mingrid' in x.lower():
                     self.mingrid=True
                 elif 'printderiv' in x.lower():
@@ -127,6 +134,8 @@ class potential:
                     self.fiteignum=re.findall(r'\b\d+\b', x)
                     for x in range(len(self.fiteignum)):
                         self.fiteignum[x]=int(self.fiteignum[x])
+                    self.petsc=True
+                    self.numsol=max(self.fiteignum)+1
                 elif 'minpos' in x.lower():
                     self.minpos=rx.findall(x)
                     print('Will use {0} as starting minimum for 2nd derivative evaluation if requested.'.format(self.minpos))
@@ -211,14 +220,19 @@ class potential:
         import numpy as np
         c=[]
         for x in range(len(self.fiteignum)):
-            c.append(np.multiply(self.mass[x],\
-                    np.square(np.divide(np.subtract(self.eigenval[self.fiteignum[x]],self.eigenval[0]),self.fiteigval[x]))))
-        result=minimize(self.calcfreqminusactualfreq,c)
+            c.append(self.mass[x])
+#            c.append(np.multiply(self.mass[x],\
+#                    np.square(np.divide(np.subtract(self.eigenval[self.fiteignum[x]],self.eigenval[0]),self.fiteigval[x]))))
+        result=minimize(self.calcfreqminusactualfreq,c,method='L-BFGS-B',options={'ftol':1e-04,'gtol':1e-04,'eps':1e-07})
         print(result)
-        print(self.mass)
+        print('Final Eigenvalues')
+        for x in range(len(self.fiteignum)): 
+            print(self.eigenval[self.fiteignum],np.subtract(self.eigenval[self.fiteignum[x]],self.eigenval[0]))
+        print('Final Mass {0}'.format(self.mass))
 
     def calcfreqminusactualfreq(self,c):
         self.mass=c
+        print(self.mass)
         self.solve()
         tot=0.0
         from numpy import add, subtract, abs
@@ -450,7 +464,8 @@ class potential:
             self.prevpoints=pts
             if self.petsc:
                 eigenval=H_array_petsc(pts=pts,mass=mass,V=np.ndarray.flatten(vfit),\
-                        qmax=[qmax0,qmax1],qmin=[qmin0,qmin1],coordtype=coordtypes,numeig=6)
+                        qmax=[qmax0,qmax1],qmin=[qmin0,qmin1],coordtype=coordtypes,numeig=self.numsol\
+                        ,printpetsc=self.printpetsc)
             else:
                 Ham=H_array(pts=pts,mass=mass,V=np.ndarray.flatten(vfit),\
                         qmax=[qmax0,qmax1],qmin=[qmin0,qmin1],coordtype=coordtypes)
@@ -459,7 +474,8 @@ class potential:
 #            mass= roundmasstoequal(mass=mass,sigfigs=sigfigs,dq1=np.divide(mw1,mass[0]),dq2=np.divide(mw2,mass[1]))
 #            print('using {2} sig figs of reduced mass of [{0:.{3}e}, {1:.{3}e}] amu.'.format(float(mass[0]),float(mass[1]),sigfigs,sigfigs-1))
             if self.petsc:
-                eigenval=H_array_petsc(pts=pts,mass=mass,V=Energies,qmax=np.amax(r,axis=1),qmin=np.amin(r,axis=1),coordtype=coordtypes,numeig=6)
+                eigenval=H_array_petsc(pts=pts,mass=mass,V=Energies,qmax=np.amax(r,axis=1),qmin=np.amin(r,axis=1),\
+                        coordtype=coordtypes,numeig=self.numsol,printpetsc=self.printpetsc)
             else:
                 Ham=H_array(pts=pts,mass=mass,V=Energies,qmax=np.amax(r,axis=1),qmin=np.amin(r,axis=1),coordtype=coordtypes)
                 eigenval, eigenvec=np.linalg.eig(Ham)
@@ -601,7 +617,7 @@ def plot2d(x,y,z,wavenumber=False,wavenumbercutoff=10000,angular=True,norm=False
         plt.savefig(save)
         plt.close()
 
-def H_array_petsc(pts=5,coordtype=['r'],mass=[0.5],qmin=[1.0],qmax=[2.0],V=[],numeig=6):
+def H_array_petsc(pts=5,coordtype=['r'],mass=[0.5],qmin=[1.0],qmax=[2.0],V=[],numeig=6,printpetsc=False):
     import sys, slepc4py
     slepc4py.init(sys.argv)
     from petsc4py import PETSc
@@ -616,8 +632,8 @@ def H_array_petsc(pts=5,coordtype=['r'],mass=[0.5],qmin=[1.0],qmax=[2.0],V=[],nu
     rank = comm.Get_rank()
     totalproc= comm.size
     A=PETSc.Mat().create()
-#    A.setType('aij')
-    A.setType('mpisbaij')
+    A.setType('sbaij')
+#    A.setType('mpisbaij')
     A.setSizes([(None,totpts),(None,totpts)])
     A.setFromOptions()
     A.setUp()
@@ -626,10 +642,6 @@ def H_array_petsc(pts=5,coordtype=['r'],mass=[0.5],qmin=[1.0],qmax=[2.0],V=[],nu
     diagvec.assemble()
     rstart,rend=A.getOwnershipRange()
     ncoord=len(coordtype)
-    """ Following https://pythonhosted.org/slepc4py/usrman/tutorial.html
-    note that on a 10^4 matrix the construction takes 22 minutes, solving for first 3 eigenvalues is 1min
-    Total time for first 3 on 10^4 is now down to 17 minutes
-    solving for all is 86 minutes. For optimizer I'll need to improve assembly time as well..."""
     if ncoord==1:
         qmin=[qmin]
         qmax=[qmax]
@@ -671,16 +683,15 @@ def H_array_petsc(pts=5,coordtype=['r'],mass=[0.5],qmin=[1.0],qmax=[2.0],V=[],nu
         ijindex=np.array(np.meshgrid(np.arange(totpts),np.arange(totpts)),dtype=np.uint64).T.reshape(-1,2)
         ijrange=np.squeeze(np.where(np.logical_or(D1add,D2add))[0])
         localijrange=np.array_split(ijrange,totalproc)[rank]
-        if rank==0:
+        if rank==0 and printpetsc:
             print('Sparse % {0}'.format(np.multiply(100,np.divide(np.add(V.shape[0],ijrange.shape[0]),np.square(totpts)))))
         for x in np.nditer(localijrange):
-            if D1add[x]: # and np.less_equal(ijindex[x,0],ijindex[x,1]):
+            if D1add[x]: 
                 if D2add[x]:
                         A[ijindex[x,0],ijindex[x,1]]=np.add(np.add(D1[indices[0,x],indices[3,x]], D2[indices[1,x],indices[2,x]]),diagvec[ijindex[x,0]])
                 else:
                     A[ijindex[x,0],ijindex[x,1]]=D2[indices[1,x],indices[2,x]]
             else:
-#            elif np.greater_equal(ijindex[x,0],ijindex[x,1]):
                 A[ijindex[x,0],ijindex[x,1]]=D1[indices[0,x],indices[3,x]]
     else:
         raise ValueError("not implemented for %d dimensions" % (ncoord))
@@ -692,14 +703,13 @@ def H_array_petsc(pts=5,coordtype=['r'],mass=[0.5],qmin=[1.0],qmax=[2.0],V=[],nu
     E.setDimensions(numeig)
     E.setFromOptions()
     E.solve()
-    E.view()
-
-    its = E.getIterationNumber()
-    if rank==0:
+    if rank==0 and printpetsc:
+        E.view()
+        its = E.getIterationNumber()
         Print = PETSc.Sys.Print
         Print("Number of iterations of the method: %d" % its)
-    eps_type = E.getType()
-    if rank==0:
+    if rank==0 and printpetsc:
+        eps_type = E.getType()
         Print("Solution method: %s" % eps_type)
     nev, ncv, mpd = E.getDimensions()
     tol, maxit = E.getTolerances()
@@ -777,20 +787,18 @@ def H_array(pts=5,coordtype=['r'],mass=[0.5],qmin=[1.0],qmax=[2.0],V=[]):
                 it[0]=D1[i,i1]
             it.iternext()
     elif ncoord==2:
-        """ It is probably possible to vectorize this with np.where such that iteration is not required: 
-            that said this it isn't necessary atm, since eig is n^3 and much slower"""
-        while not it.finished:
-            if np.equal(indices[0,it.index],indices[3,it.index]):
-                if np.equal(indices[1,it.index],indices[2,it.index] ):
-                    it[0]=np.add(np.add(D1[indices[0,it.index],indices[3,it.index]], D2[indices[1,it.index],indices[2,it.index]]),V[k])
-                    k+=1
+        D1add=np.equal(indices[0,:],indices[3,:])
+        D2add=np.equal(indices[1,:],indices[2,:])
+        ijindex=np.array(np.meshgrid(np.arange(totpts),np.arange(totpts)),dtype=np.uint64).T.reshape(-1,2)
+        ijrange=np.squeeze(np.where(np.logical_or(D1add,D2add))[0])
+        for x in np.nditer(ijrange):
+            if D1add[x]: 
+                if D2add[x]:
+                        A[ijindex[x,0],ijindex[x,1]]=np.add(np.add(D1[indices[0,x],indices[3,x]], D2[indices[1,x],indices[2,x]]),V[ijindex[x,0]])
                 else:
-                    it[0]=D2[indices[1,it.index],indices[2,it.index]]
-            elif np.equal(indices[1,it.index],indices[2,it.index] ): 
-                it[0]=D1[indices[0,it.index],indices[3,it.index]]
-                for i in range(pts[1]-1-np.squeeze(indices[1,it.index])):
-                    it.iternext()
-            it.iternext()
+                    A[ijindex[x,0],ijindex[x,1]]=D2[indices[1,x],indices[2,x]]
+            else:
+                A[ijindex[x,0],ijindex[x,1]]=D1[indices[0,x],indices[3,x]]
     else:
         raise ValueError("not implemented for %d dimensions" % (ncoord))
     return A
