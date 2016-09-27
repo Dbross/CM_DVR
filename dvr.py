@@ -209,7 +209,7 @@ class potential:
         else:
             raise ValueError("not implemented for %d dimensions" % (len(self.coordtypes)))
             Ham=H_array(pts=pts,mass=mass,V=Energies,qmax=np.amax(r,axis=1),qmin=np.amin(r,axis=1),coordtype=coordtypes)
-            eigenval, eigenvec=np.linalg.eig(Ham)
+            eigenval, eigenvec=np.linalg.eigh(Ham)
             Esort=np.sort(eigenval*hartreetocm)
             Etoprint=int(len(Esort)/2)
             for x in range(Etoprint):
@@ -264,7 +264,7 @@ class potential:
             for x in range(len(xmin)):
                 print('({0:10.4e} {1:15.4e} {2:15.2f})'.format(xmin[x],derivs[x],Energ[x]*hartreetocm))
         if len(self.harmonicfreq)==1 and not self.massadjust:
-            raise ValueError("not implemented for %d dimensions" % (len(self.coordtypes)))
+#            raise ValueError("not implemented for %d dimensions" % (len(self.coordtypes)))
             if len(self.minpos)==0:
                 minpos=(min(r[0])+max(r[0]))/2.0
             else:
@@ -275,7 +275,7 @@ class potential:
         xnew = np.linspace(min(r[0]),max(r[0]), num=num_points)
         vfit= splev(xnew, Ener_spline, der=0)
         Ham=H_array(pts=pts,mass=mass,V=Energies,qmax=np.amax(r,axis=1),qmin=np.amin(r,axis=1),coordtype=coordtypes)
-        eigenval, eigenvec=np.linalg.eig(Ham)
+        eigenval, eigenvec=np.linalg.eigh(Ham)
         eindex=np.argsort(eigenval)
         self.eigenval, eigenvec= eigenval[eindex], np.transpose(eigenvec[:,eindex])
         Esort=(self.eigenval*hartreetocm)
@@ -469,7 +469,7 @@ class potential:
             else:
                 Ham=H_array(pts=pts,mass=mass,V=np.ndarray.flatten(vfit),\
                         qmax=[qmax0,qmax1],qmin=[qmin0,qmin1],coordtype=coordtypes)
-                eigenval, eigenvec=np.linalg.eig(Ham)
+                eigenval, eigenvec=np.linalg.eigh(Ham)
         else:   
 #            mass= roundmasstoequal(mass=mass,sigfigs=sigfigs,dq1=np.divide(mw1,mass[0]),dq2=np.divide(mw2,mass[1]))
 #            print('using {2} sig figs of reduced mass of [{0:.{3}e}, {1:.{3}e}] amu.'.format(float(mass[0]),float(mass[1]),sigfigs,sigfigs-1))
@@ -478,7 +478,7 @@ class potential:
                         coordtype=coordtypes,numeig=self.numsol,printpetsc=self.printpetsc)
             else:
                 Ham=H_array(pts=pts,mass=mass,V=Energies,qmax=np.amax(r,axis=1),qmin=np.amin(r,axis=1),coordtype=coordtypes)
-                eigenval, eigenvec=np.linalg.eig(Ham)
+                eigenval, eigenvec=np.linalg.eigh(Ham)
         self.eigenval=eigenval.real.astype(eval(numpy_precision))
         eindex=np.argsort(eigenval)
         if not self.petsc:
