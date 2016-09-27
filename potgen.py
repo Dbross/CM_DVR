@@ -85,7 +85,7 @@ class q:
         if self.coordtype==0 and q_other.coordtype==0 and not forcegrid:
             """ modify grid of two radial coordinates to make mass weighting equal"""
             c=[self.maxval, self.minval, q_other.maxval, q_other.minval]
-            if not innerbound:
+            if innerbound:
                 minbnds=(multiply(self.maxval,0.8),multiply(self.minval,1.000000001),\
                         multiply(q_other.maxval,0.8),multiply(q_other.minval,1.000000001))
                 maxbnds=(multiply(self.maxval,0.9999999999),multiply(self.minval,1.3),\
