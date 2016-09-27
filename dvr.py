@@ -450,7 +450,7 @@ class potential:
             self.prevpoints=pts
             if self.petsc:
                 eigenval=H_array_petsc(pts=pts,mass=mass,V=np.ndarray.flatten(vfit),\
-                        qmax=[qmax0,qmax1],qmin=[qmin0,qmin1],coordtype=coordtypes)
+                        qmax=[qmax0,qmax1],qmin=[qmin0,qmin1],coordtype=coordtypes,numeig=6)
             else:
                 Ham=H_array(pts=pts,mass=mass,V=np.ndarray.flatten(vfit),\
                         qmax=[qmax0,qmax1],qmin=[qmin0,qmin1],coordtype=coordtypes)
@@ -459,7 +459,7 @@ class potential:
 #            mass= roundmasstoequal(mass=mass,sigfigs=sigfigs,dq1=np.divide(mw1,mass[0]),dq2=np.divide(mw2,mass[1]))
 #            print('using {2} sig figs of reduced mass of [{0:.{3}e}, {1:.{3}e}] amu.'.format(float(mass[0]),float(mass[1]),sigfigs,sigfigs-1))
             if self.petsc:
-                eigenval=H_array_petsc(pts=pts,mass=mass,V=Energies,qmax=np.amax(r,axis=1),qmin=np.amin(r,axis=1),coordtype=coordtypes)
+                eigenval=H_array_petsc(pts=pts,mass=mass,V=Energies,qmax=np.amax(r,axis=1),qmin=np.amin(r,axis=1),coordtype=coordtypes,numeig=6)
             else:
                 Ham=H_array(pts=pts,mass=mass,V=Energies,qmax=np.amax(r,axis=1),qmin=np.amin(r,axis=1),coordtype=coordtypes)
                 eigenval, eigenvec=np.linalg.eig(Ham)
@@ -601,7 +601,7 @@ def plot2d(x,y,z,wavenumber=False,wavenumbercutoff=10000,angular=True,norm=False
         plt.savefig(save)
         plt.close()
 
-def H_array_petsc(pts=5,coordtype=['r'],mass=[0.5],qmin=[1.0],qmax=[2.0],V=[]):
+def H_array_petsc(pts=5,coordtype=['r'],mass=[0.5],qmin=[1.0],qmax=[2.0],V=[],numeig=6):
     import sys, slepc4py
     slepc4py.init(sys.argv)
     from petsc4py import PETSc
@@ -614,18 +614,21 @@ def H_array_petsc(pts=5,coordtype=['r'],mass=[0.5],qmin=[1.0],qmax=[2.0],V=[]):
     import numpy as np
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
+    totalproc= comm.size
     A=PETSc.Mat().create()
+#    A.setType('aij')
     A.setType('mpisbaij')
     A.setSizes([(None,totpts),(None,totpts)])
     A.setFromOptions()
     A.setUp()
     diagvec=PETSc.Vec().createSeq(V.shape[0])
     diagvec.setValues(range(V.shape[0]),V)
-    A.setDiagonal(diagvec)
+    diagvec.assemble()
     rstart,rend=A.getOwnershipRange()
     ncoord=len(coordtype)
     """ Following https://pythonhosted.org/slepc4py/usrman/tutorial.html
     note that on a 10^4 matrix the construction takes 22 minutes, solving for first 3 eigenvalues is 1min
+    Total time for first 3 on 10^4 is now down to 17 minutes
     solving for all is 86 minutes. For optimizer I'll need to improve assembly time as well..."""
     if ncoord==1:
         qmin=[qmin]
@@ -665,18 +668,20 @@ def H_array_petsc(pts=5,coordtype=['r'],mass=[0.5],qmin=[1.0],qmax=[2.0],V=[]):
     elif ncoord==2:
         D1add=np.equal(indices[0,:],indices[3,:])
         D2add=np.equal(indices[1,:],indices[2,:])
-        print(D1add.shape,D2add.shape)
-        ijrange=np.squeeze(np.where(np.logical_or(D1add,D2add))[0])
         ijindex=np.array(np.meshgrid(np.arange(totpts),np.arange(totpts)),dtype=np.uint64).T.reshape(-1,2)
-        for x in np.nditer(ijrange):
-            print(x,ijindex[x])
-            if D1add[x]:
+        ijrange=np.squeeze(np.where(np.logical_or(D1add,D2add))[0])
+        localijrange=np.array_split(ijrange,totalproc)[rank]
+        if rank==0:
+            print('Sparse % {0}'.format(np.multiply(100,np.divide(np.add(V.shape[0],ijrange.shape[0]),np.square(totpts)))))
+        for x in np.nditer(localijrange):
+            if D1add[x]: # and np.less_equal(ijindex[x,0],ijindex[x,1]):
                 if D2add[x]:
-                    A[ijindex[x][0],ijindex[x][1]]=np.add(np.add(D1[indices[0,x],indices[3,x]], D2[indices[1,x],indices[2,x]]),A[ijindex[x][0],ijindex[x][0]])
+                        A[ijindex[x,0],ijindex[x,1]]=np.add(np.add(D1[indices[0,x],indices[3,x]], D2[indices[1,x],indices[2,x]]),diagvec[ijindex[x,0]])
                 else:
-                    A[ijindex[x][0],ijindex[x][1]]=D2[indices[1,x],indices[2,x]]
+                    A[ijindex[x,0],ijindex[x,1]]=D2[indices[1,x],indices[2,x]]
             else:
-                A[ijindex[x][0],ijindex[x][1]]=D1[indices[0,x],indices[3,x]]
+#            elif np.greater_equal(ijindex[x,0],ijindex[x,1]):
+                A[ijindex[x,0],ijindex[x,1]]=D1[indices[0,x],indices[3,x]]
     else:
         raise ValueError("not implemented for %d dimensions" % (ncoord))
     A.assemble()
@@ -684,20 +689,18 @@ def H_array_petsc(pts=5,coordtype=['r'],mass=[0.5],qmin=[1.0],qmax=[2.0],V=[]):
     E.setOperators(A)
     E.setProblemType(SLEPc.EPS.ProblemType.HEP)
     E.setWhichEigenpairs(SLEPc.EPS.Which.SMALLEST_MAGNITUDE)
-    E.setDimensions(6)
-#    E.setDimensions(totpts)
+    E.setDimensions(numeig)
     E.setFromOptions()
     E.solve()
     E.view()
 
-
-
-    Print = PETSc.Sys.Print
-
     its = E.getIterationNumber()
-    Print("Number of iterations of the method: %d" % its)
+    if rank==0:
+        Print = PETSc.Sys.Print
+        Print("Number of iterations of the method: %d" % its)
     eps_type = E.getType()
-    Print("Solution method: %s" % eps_type)
+    if rank==0:
+        Print("Solution method: %s" % eps_type)
     nev, ncv, mpd = E.getDimensions()
     tol, maxit = E.getTolerances()
     nconv = E.getConverged()
