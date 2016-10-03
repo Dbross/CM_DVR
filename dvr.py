@@ -976,13 +976,13 @@ def main():
 #    pot.xlsx()
 #    pot.fit1dpot()
         pot.solve()
-    from mpi4py import MPI
-    comm = MPI.COMM_WORLD
-    rank = comm.Get_rank()
-    if len(pot.fiteignum)>0 and rank==0:
-        pot.fitfundamental()
-    if pot.printeigenval==True and rank==0:
-        pot.printeigenvals()
+        from mpi4py import MPI
+        comm = MPI.COMM_WORLD
+        rank = comm.Get_rank()
+        if len(pot.fiteignum)>0 and rank==0:
+            pot.fitfundamental()
+        if pot.printeigenval==True and rank==0:
+            pot.printeigenvals()
 
 # jacobian stuff
 #    A = array([[2.0,1.0],[5.0,7.0]])
