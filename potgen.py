@@ -79,9 +79,9 @@ class q:
         mini, maxi,minj,maxj =int(round(0.5*self.numpoints)),self.numpoints*50, int(round(0.5*q_other.numpoints)),q_other.numpoints*50
         if uselowest:
             mini, minj =min(mini,21), min(minj,21)
-        if mingrid:
-            mini, maxi =min(21,int(self.numpoints*0.5)),self.numpoints+1,
-            minj, maxj =min(21,int(self.numpoints*0.5)),q_other.numpoints+1 
+#        if mingrid:
+#            mini, maxi =min(21,int(self.numpoints*0.5)),self.numpoints+1,
+#            minj, maxj =min(21,int(self.numpoints*0.5)),q_other.numpoints+1 
         if self.coordtype==0 and q_other.coordtype==0 and not forcegrid:
             """ modify grid of two radial coordinates to make mass weighting equal"""
             c=[self.maxval, self.minval, q_other.maxval, q_other.minval]
@@ -106,7 +106,7 @@ class q:
                         triali.append(i)
                         trialj.append(j)
                         vals.append(result.x)
-                        mingridsolutionfound=True
+#                        mingridsolutionfound=True
             stoploop=False
             if not mingridsolutionfound:
                 for i in range(self.numpoints,maxi):
@@ -144,7 +144,7 @@ class q:
                         triali.append(i)
                         trialj.append(j)
                         vals.append(result.x)
-                        mingridsolutionfound=True
+#                        mingridsolutionfound=True
             stoploop=False
             if not mingridsolutionfound:
                 for i in range(self.numpoints,maxi, 1):
@@ -179,7 +179,7 @@ class q:
                         triali.append(i)
                         trialj.append(j)
                         vals.append(result.x)
-                        mingridsolutionfound=True
+#                        mingridsolutionfound=True
             stoploop=False
             if not mingridsolutionfound:
                 for i in range(self.numpoints,maxi, 1):
@@ -208,7 +208,7 @@ class q:
                         trialval.append(val1)
                         triali.append(i)
                         trialj.append(j)
-                        mingridsolutionfound=True
+#                        mingridsolutionfound=True
             stoploop=False
             if not mingridsolutionfound:
                 for i in range(self.numpoints,maxi, 1):
@@ -227,7 +227,8 @@ class q:
         if len(triali)>=1:
             if autoselect:
                 if mingrid or uselowest:
-                    diffofgrid=add(self.numpoints,q_other.numpoints)
+#                    diffofgrid=add(self.numpoints,q_other.numpoints)
+                    diffofgrid=add(abs(subtract(array(triali),self.numpoints*2)),abs(subtract(array(trialj),q_other.numpoints*2)))
                 else:
                     diffofgrid=add(abs(subtract(array(triali),self.numpoints)),abs(subtract(array(trialj),q_other.numpoints)))
                 if self.coordtype==2:
