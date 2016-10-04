@@ -973,8 +973,8 @@ def main():
             pot.readpotential(inp=sys.argv[1])
         else:
             pot.readpotential(inp=input('Give the file with the potential: '))
-#    pot.xlsx()
-#    pot.fit1dpot()
+#        pot.xlsx()
+#       pot.fit1dpot()
         pot.solve()
         from mpi4py import MPI
         comm = MPI.COMM_WORLD
