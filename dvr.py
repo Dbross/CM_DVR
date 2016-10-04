@@ -543,8 +543,13 @@ def loadeigen(eigfile='tmp.eig.h5',eigenvectoplot=1):
     eigenval=data['eigenval'][:]
     Esort=np.multiply(eigenval,hartreetocm)
     plot2d(x,y,z,wavenumber=True,title='Potential Energy Contours',save=eigbase+'.pot.pdf')
+    print('q0(max/min),q1(max/min),eigenvector at position,eigenval')
+    print(eigenvec.shape)
     if eigenvectoplot>0:
         for i in range(eigenvectoplot):
+            maxpos=np.argsort(eigenvec[i])
+            print(x[maxpos[0]],y[maxpos[0]],eigenvec[i,maxpos[0]])
+            print(x[maxpos[-1]],y[maxpos[-1]],eigenvec[i,maxpos[-1]])
             if i==eigenvectoplot-1:
                 plot2d(x,y,eigenvec[i],title='eigenvec {0} with energy {1:.3f}'.format(i,Esort[i]),save=eigbase+'.eig.'+str(i)+'.pdf',includegrid=False)
             else:
