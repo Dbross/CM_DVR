@@ -11,6 +11,9 @@ Contents:
 .. toctree::
    :maxdepth: 2
 
+   Introduction <introduction.rst>
+   DVR Interface <dvr.rst>
+   Potgen Interface <potgen.rst>
 
 
 Indices and tables

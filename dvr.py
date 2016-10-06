@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
 """ This program was written following 
 Citation: The Journal of Chemical Physics 96, 1982 (1992); doi: 10.1063/1.462100
-as a guide
-Can use  scipy.sparse.linalg.eigsh(A, k=6, M=None, sigma=None, which='LM', v0=None, ncv=None, maxiter=None, tol=0, return_eigenvectors=True, Minv=None, OPinv=None, mode='normal')[source] as a way of doing Lanczos...."""
-from __future__ import absolute_import, division, print_function, unicode_literals
+as a guide """
 from builtins import (bytes, str, open, super, range, zip, round, input, int, pow, object)
 
 def constants(CODATA_year=2010):
@@ -34,7 +32,7 @@ def constants(CODATA_year=2010):
 #    hartreetocm=219474.6313717
 
 class potential:
-    """ Define this class, along with keywords"""
+    """ The Potential Energy Surface Class."""
 # anyline starting with ! or # is commented out
     def __init__(self):
         self.r=[]
@@ -59,7 +57,30 @@ class potential:
         self.printpetsc=False
 
     def readpotential(self,inp):
-        #potential should have coordinate and units as main input
+        """ Read the .pot file ! or # comment out a line, 
+        minimum input
+        type
+        mass
+        units
+        q1, q2, ... Energy [PES, ordered by qn changing first, then q(n-1), q1 changes the slowest]
+        Input keywords
+        available types:  angular_2pi , radial , angular_pi (1 per dimension of potential on a single line)
+        bohr: use bohr for radial coordinates
+        angstrom: use angstrom for radial coordinates
+        mass= float (1 per dimension of potential) : reduced mass (or moment of intertia) to use
+        plotit integer [number of eigenvalues to print] : plot the potential into pdfs
+        preplot integer [number of wavenumbers desired for potential] (repeated per number of plots desired): interactive feature to plot before solving potential
+        minpos = float (1 per dimension of potential) : position of minimum for reduced mass fit
+        harmonic =  float (1 per dimension of potential) : harmonic frequency to fit reduced mass to
+        emin = float : subtracts this value from the entire potential
+        printderiv :prints the derivitives
+        petsc integer [number of eigenvalues to solve for]:  use PETSC rather than mkl for solution, should be used with MPI
+        Keywords still under development
+        fiteigval float (repeat per number of eigenvals to fit to) :eigenvalue desired to fit to
+        fiteignum integer (repeat per number of eigenvals to fit to) : eigenvalue solution number for fitting
+        All other lines should have 
+        rest of lines should just have potential
+        """
         commentoutchars=['!','#']
         types=['angular_2pi','radial','angular_pi']
         lines=openandread(inp)
@@ -112,6 +133,11 @@ class potential:
                         self.preplotval=[int(2000)]
                 elif 'plotit' in x.lower():
                     self.plotit=True
+                    self.numtoplot=re.findall(r'\b\d+\b', x)
+                    if len(self.numtoplot)>=1:
+                        self.numtoplot=int(self.numtoplot[0])
+                    else:
+                        self.numtoplot=6
                 elif 'petsc' in x.lower():
                     self.petsc=True
                     self.printpetsc=True
@@ -184,6 +210,7 @@ class potential:
             self.pts.append(len(np.unique(self.r[x])))
 
     def xlsx(self):
+        """ Writes potential into a xlsx file 'tmp.xlsx' in directory """
         import xlsxwriter
         workbook = xlsxwriter.Workbook('tmp.xlsx')
         worksheet = workbook.add_worksheet()
@@ -195,6 +222,7 @@ class potential:
         workbook.close()
 
     def solve(self):
+        """ solves the potential, with different calls for 1d, 2d, nd, etc. Currently only 1d and 2d implemented"""
         if len(self.coordtypes)==1:
 #            from timeit import Timer
 #            t = Timer(lambda: spline1dpot(pts,mass,coordtypes,Energies,r))
@@ -216,6 +244,7 @@ class potential:
                 print('{0:.{1}f}'.format(round(Esort[x],num_print_digits),num_print_digits))
 
     def fitfundamental(self):
+        """ Fits reduced mass to desired frequencies"""
         from scipy.optimize import minimize
         import numpy as np
         c=[]
@@ -231,6 +260,7 @@ class potential:
         print('Final Mass {0}'.format(self.mass))
 
     def calcfreqminusactualfreq(self,c):
+        """ minimization function for fitfundamental function"""
         self.mass=c
         print(self.mass)
         self.solve()
@@ -241,6 +271,7 @@ class potential:
         return tot
     
     def printeigenvals(self):
+        """Prints half the eigenvalues, based on the conclusions of Colbert and Miller for the range of valid eigenvalues"""
         from numpy import multiply
         Esort=multiply(self.eigenval,hartreetocm)
         Etoprint=int(len(Esort)/2)
@@ -248,6 +279,7 @@ class potential:
             print('{0:.{1}f}'.format(round(Esort[x],num_print_digits),num_print_digits))
 
     def spline1dpot(self,pts,mass,coordtypes,Energies_raw,r_raw):
+        """ 1d cubic spline and solve. """
         import numpy as np
         xmin,emin=return1dsplinemin(r_raw[0],Energies_raw)
         #r=r_raw-np.min(xmin)
@@ -330,6 +362,7 @@ class potential:
 #            plt.show(block=True)
 
     def fit1dpot(self):
+        """ Analytical 1d fit. The functional form doesn't work well here for wags, although it does work well for torsions. """
         import numpy as np
         from scipy.optimize import curve_fit, root, brentq
         import inspect
@@ -356,6 +389,7 @@ class potential:
 #                print(derivgrid[x],derivgrid[x-1])
 
     def spline2dpot(self,pts,mass,coordtypes,Energies,r,saveeigen=True):
+        """ 2d rectangular bivariate spline. Uses functions from potgen to change spacing  when massweighted spacing in rectangular grid is not identical. Writes numpy arrays out into tmp.eig.h5 so they can be plotted after solution"""
         import numpy as np
         from scipy.interpolate import griddata
         from potgen import silentmweq, roundmasstoequal
@@ -512,7 +546,7 @@ class potential:
         if self.plotit and not self.petsc:
             if np.abs(np.subtract(mw1,mw2))>1.0E-07 or self.mingrid:
                 plot2dgrid(grid_x,grid_y,vfit,wavenumber=True,title='Potential Energy Contours')
-                eigenvectoplot=(int(input('number of eigenvectors to plot:')))
+                eigenvectoplot=self.numtoplot
                 if eigenvectoplot>0:
                     for i in range(eigenvectoplot):
                         if i==eigenvectoplot-1:
@@ -532,6 +566,7 @@ class potential:
                             plot2d(r[0],r[1],np.square(eigenvec[i]),title='eigenvec {0} with energy {1:.3f}'.format(i,Esort[i]))
 
 def loadeigen(eigfile='tmp.eig.h5',eigenvectoplot=1):
+    """ load numpy arrays to plot eigenvectors and potential"""
     import numpy as np
     import h5py
     eigbase=eigfile.split('.')[0]
@@ -581,7 +616,7 @@ def plot2dgrid(x,y,z,wavenumber=False,angular=False,norm=False,block=False,legen
         plt.savefig(save)
 
 def plot2d(x,y,z,wavenumber=False,wavenumbercutoff=10000,angular=True,norm=False,block=False,legend=True,includegrid=False,title='2d filled contour plot',save='tmp.pdf'):
-    """ Flat x,y,z as input"""
+    """ Flat x,y,z as input 2d plot"""
     import numpy as np
     import matplotlib.mlab as ml
     import matplotlib.pyplot as plt
@@ -623,6 +658,7 @@ def plot2d(x,y,z,wavenumber=False,wavenumbercutoff=10000,angular=True,norm=False
         plt.close()
 
 def H_array_petsc(pts=5,coordtype=['r'],mass=[0.5],qmin=[1.0],qmax=[2.0],V=[],numeig=6,printpetsc=False):
+    """ Petsc based solver"""
     import sys, slepc4py
     slepc4py.init(sys.argv)
     from petsc4py import PETSc
@@ -730,7 +766,8 @@ def H_array_petsc(pts=5,coordtype=['r'],mass=[0.5],qmin=[1.0],qmax=[2.0],V=[],nu
     return (eigenval)
 
 def H_array(pts=5,coordtype=['r'],mass=[0.5],qmin=[1.0],qmax=[2.0],V=[]):
-    """ input 
+    """ normal numpy array generation, returns 2d array for solution, conventionally done by mkl
+    input 
     pts=points , coordtype (dict values r, phi, theta), qmin=list(qminimia), qmax=list(qmaxima), V=potential
     output
     2d DVR array based on
@@ -809,6 +846,7 @@ def H_array(pts=5,coordtype=['r'],mass=[0.5],qmin=[1.0],qmax=[2.0],V=[]):
     return A
 
 def H_array_1d(pts=5,coordtype='r',mass=0.5,qmin=1.0,qmax=2.0):
+    """ Returns single coordinate 2d array necessary for multidimensional coordinate array generation"""
     import numpy as np
     n=pts
     A=np.zeros((n,n),dtype=eval(numpy_precision))
@@ -941,6 +979,7 @@ def func1dder2(x,c,a1,b1,a2,b2,a3,b3,a4,b4):
             )
 
 def plot1dfit(x0,y0,xgrid,yfit,block=True,legend=['Points','Fit'],title='Fit Potential'):
+    """ 1 dimensional ploting function"""
     import matplotlib.pyplot as plt
     plt.figure()
     plt.plot(x0,y0,linestyle='none',marker='o')
@@ -952,6 +991,7 @@ def plot1dfit(x0,y0,xgrid,yfit,block=True,legend=['Points','Fit'],title='Fit Pot
 
     
 def mwspace(coordtype='r',rlen=1.0,mass=1.0,pts=2):
+    """Check massweighted spacing"""
     from numpy import multiply, power, divide, pi , add
     if coordtype=='r':
         mwspace=multiply(power(divide(rlen,add(pts,1)),2),mass)
