@@ -2,6 +2,7 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 from builtins import (bytes, str, open, super, range, zip, round, input, int, pow, object)
 class q:
+    """ Coordinate class"""
     r_unit=-1
     def __init__(self,maxval=0,minval=0,coordtype=0,mass=0,numpoints=0):
         from numpy import multiply, divide, pi
@@ -21,6 +22,7 @@ class q:
         self.setgrid()
 
     def interactive_start(self):
+        """ Interactive coordinate generation"""
         r_unit=0
 #        try:
 #            r_unit
@@ -50,6 +52,7 @@ class q:
         self.setgrid()
 
     def setgrid(self): 
+        """ setup the grid"""
         from numpy import linspace, delete
         self.grid=linspace(self.minval,self.maxval,self.numpoints)
         #if self.coordtype==0: 
@@ -68,6 +71,7 @@ class q:
             self.numpoints=self.numpoints-1
 
     def equivalencemwcoords(self,q_other,forcegrid=False,innerbound=True,autoselect=False,mingrid=False,startlow=False,uselowest=False):
+        """ set the spacing of the two grids to be equal"""
         from scipy.optimize import minimize, basinhopping
         from numpy import subtract, multiply, int, pi, add, abs, array, argmin, less, where, equal, mod
         m1=self.mass
@@ -285,6 +289,7 @@ class q:
 #        print(self.maxval,self.minval,q_other.maxval,q_other.minval,self.numpoints,q_other.numpoints)
 
 def frr(c,m1,m2,pts1,pts2):
+    """Minimization function for 2 radial coordinates """
     from numpy import subtract, power, round, divide, multiply#, add, int, abs
     mw1=multiply(power(divide(subtract(c[0],c[1]),subtract((pts1),1)),2),m1)
     mw2=multiply(power(divide(subtract(c[2],c[3]),subtract((pts2),1)),2),m2)
@@ -293,18 +298,21 @@ def frr(c,m1,m2,pts1,pts2):
 #    return add(abs(subtract(mw2,mw1)),multiply(0.01,add(abs(subtract(int(c[2]),c[2])),abs(subtract(int(c[5]),c[5])))))
 
 def frang(c,m1,m2,q2range,pts1,pts2):
+    """Minimization function for a radial and an angular coordinate"""
     from numpy import subtract, power, round, divide, multiply
     mw1=multiply(power(divide(subtract(c[0],c[1]),subtract((pts1),1)),2),m1)
     mw2=multiply(power(divide(q2range,subtract((pts2),1)),2),m2)
     return abs(subtract(mw2,mw1))
 
 def fmassmass(c,dq1,dq2,sigfigs):
+    """Minimization function to round two masses"""
     from numpy import subtract, power, round, divide, multiply
     mw1=multiply(dq1,round_to_n(c[0],sigfigs))
     mw2=multiply(dq2,round_to_n(c[1],sigfigs))
     return abs(subtract(mw2,mw1))
 
 def fangang(m1,m2,q1range,q2range,pts1,pts2):
+    """Minimization function for two angular coordinates"""
     from numpy import subtract, power, round, divide, multiply
     mw1=multiply(power(divide(q1range,subtract(pts1,1)),2),m1)
     mw2=multiply(power(divide(q2range,subtract(pts2,1)),2),m2)
@@ -457,4 +465,3 @@ def main():
 
 if __name__=="__main__":
     main()
-
