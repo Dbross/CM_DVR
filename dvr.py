@@ -395,10 +395,12 @@ class potential:
         from potgen import silentmweq, roundmasstoequal
         if self.preplot:
             for x in range(len(self.preplotval)):
-                if x==len(self.preplotval)-1:
-                    plot2d(r[0],r[1],Energies,wavenumber=True,title='Potential Energy Contours',block=True,includegrid=False,wavenumbercutoff=self.preplotval[x])
+                if(x==0):
+                    xi,yi,zi= plot2d(r[0],r[1],Energies,wavenumber=True,title='Potential Energy Contours',block=False,includegrid=False,wavenumbercutoff=self.preplotval[x])
+                elif x==len(self.preplotval)-1:
+                    plot2dgrid(xi,yi,zi,wavenumber=True,title='Potential Energy Contours',block=True,includegrid=False,wavenumbercutoff=self.preplotval[x])
                 else:
-                    plot2d(r[0],r[1],Energies,wavenumber=True,title='Potential Energy Contours',block=False,includegrid=False,wavenumbercutoff=self.preplotval[x])
+                    plot2dgrid(xi,yi,zi,wavenumber=True,title='Potential Energy Contours',block=False,includegrid=False,wavenumbercutoff=self.preplotval[x])
         sigfigs=4
         qmin0 =np.copy(np.min(r[0]))
         qmax0 =np.copy(np.max(r[0]) )
@@ -465,6 +467,8 @@ class potential:
             """ It is possible to override points and grid to be fit to here... Thinking about adding a manual option but unsure why I'd do that..."""
             qmax0,qmin0,pts[0]=np.max(a[0].grid),np.min(a[0].grid),a[0].numpoints
             qmax1,qmin1,pts[1]=np.max(a[1].grid),np.min(a[1].grid),a[1].numpoints
+            print('NEW: {0:.4f}-{1:.4f} pts {2} {3:.4f}-{4:.4f} pts {5}'\
+                    .format(qmin0,qmax0,pts[0],qmin1,qmax1,pts[1]))
             from sys import exit
             if np.subtract(qmax1,org[3])>0.0:
                 if np.subtract(qmax1,org[3])<1E-11:
@@ -487,8 +491,6 @@ class potential:
                 else:
                     exit('min of coordinate 1 exceeds potential')
             grid_x, grid_y = np.mgrid[qmin0:qmax0:pts[0]*1j,qmin1:qmax1:pts[1]*1j]
-            print('NEW: {0:.4f}-{1:.4f} pts {2} {3:.4f}-{4:.4f} pts {5}'\
-                    .format(qmin0,qmax0,pts[0],qmin1,qmax1,pts[1]))
             vfit= griddata(np.transpose(np.array(r)),Energies,(grid_x,grid_y),method='cubic')
             if np.any(np.isnan(vfit)):
                 exit('fit potential outside bounds')
@@ -590,7 +592,7 @@ def loadeigen(eigfile='tmp.eig.h5',eigenvectoplot=1):
             else:
                 plot2d(x,y,eigenvec[i],title='eigenvec {0} with energy {1:.3f}'.format(i,Esort[i]),save=eigbase+'.eig.'+str(i)+'.pdf',includegrid=False)
 
-def plot2dgrid(x,y,z,wavenumber=False,angular=False,norm=False,block=False,legend=True,title='2d filled contour plot',save='tmp.pdf'):
+def plot2dgrid(x,y,z,wavenumber=False,wavenumbercutoff=10000,angular=False,norm=False,block=False,legend=True,includegrid=False,title='2d filled contour plot',save='tmp.pdf'):
     """ 2d grids in with their corresponding z, e.g. np.shape (x_dim_len,y_dim_len) for x, y, and z"""
     import numpy as np
     import matplotlib.pyplot as plt
@@ -599,11 +601,13 @@ def plot2dgrid(x,y,z,wavenumber=False,angular=False,norm=False,block=False,legen
     if wavenumber:
         z=np.subtract(z,np.min(z))
         z=z*219474.6313717 
-        levs=range(0,10000,100)
+        levs=range(0,wavenumbercutoff,int(min(100,wavenumbercutoff/50)))
     else:
         levs=np.linspace(float(np.amin(z)),float(np.amax(z)),100)
     plt.figure()
     cp=plt.contourf(x,y,z,cmap=(plt.cm.gnuplot),origin='lower',levels=levs)
+    if includegrid:
+        plt.plot(x,y,linestyle='none',marker='o')
     plt.title(title)
     if legend:
         CB = plt.colorbar(cp, shrink=0.8, extend='both')
@@ -656,6 +660,7 @@ def plot2d(x,y,z,wavenumber=False,wavenumbercutoff=10000,angular=True,norm=False
     else:
         plt.savefig(save)
         plt.close()
+    return (xi,yi,np.divide(zi,219474.6313717))
 
 def H_array_petsc(pts=5,coordtype=['r'],mass=[0.5],qmin=[1.0],qmax=[2.0],V=[],numeig=6,printpetsc=False):
     """ Petsc based solver"""
