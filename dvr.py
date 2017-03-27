@@ -465,9 +465,27 @@ class potential:
             """ It is possible to override points and grid to be fit to here... Thinking about adding a manual option but unsure why I'd do that..."""
             qmax0,qmin0,pts[0]=np.max(a[0].grid),np.min(a[0].grid),a[0].numpoints
             qmax1,qmin1,pts[1]=np.max(a[1].grid),np.min(a[1].grid),a[1].numpoints
+            grid_x, grid_y = np.mgrid[qmin0:qmax0:pts[0]*1j,qmin1:qmax1:pts[1]*1j]
+            print('NEW: {0:.4f}-{1:.4f} pts {2} {3:.4f}-{4:.4f} pts {5}'\
+                    .format(qmin0,qmax0,pts[0],qmin1,qmax1,pts[1]))
             from sys import exit
             if np.subtract(qmax1,org[3])>0.0:
-                if np.subtract(qmax1,org[3])<1E-11:
+                if self.coordtypes[1]=='phi':
+                    r0=[]
+                    e0=[]
+                    qmin1original =np.copy(np.min(r[1]))
+                    print(qmin1original)
+                    for x in range(len(Energies)):
+                        if np.less(np.abs(np.subtract(r[1][x],qmin1original)),1e-08):
+                            r0.append([r[0][x],2*np.pi])
+                            e0.append(Energies[x])
+                    r1=np.array(r0,dtype=eval(numpy_precision))
+                    r1=r1.transpose()
+                    e1=np.array(e0,dtype=eval(numpy_precision))
+                    r=np.concatenate((r,r1), axis=1)
+                    print('new')
+                    Energies=np.concatenate((Energies,e1), axis=0)
+                elif np.subtract(qmax1,org[3])<1E-11:
                     qmax1=org[3]
                 else:
                     exit('max of coordinate 1 exceeds potential')
@@ -486,10 +504,17 @@ class potential:
                     qmin1=org[2]
                 else:
                     exit('min of coordinate 1 exceeds potential')
-            grid_x, grid_y = np.mgrid[qmin0:qmax0:pts[0]*1j,qmin1:qmax1:pts[1]*1j]
-            print('NEW: {0:.4f}-{1:.4f} pts {2} {3:.4f}-{4:.4f} pts {5}'\
-                    .format(qmin0,qmax0,pts[0],qmin1,qmax1,pts[1]))
             vfit= griddata(np.transpose(np.array(r)),Energies,(grid_x,grid_y),method='cubic')
+            txt=open('new.pot','w')
+            for x in range(len(grid_x)):
+                for y in range(len(grid_x)):
+                    txt.write(str(grid_x[x][y]))
+                    txt.write(' ')
+                    txt.write(str(grid_y[x][y]))
+                    txt.write(' ')
+                    txt.write(str(vfit[x][y]))
+                    txt.write('\n')
+            txt.close()
             if np.any(np.isnan(vfit)):
                 exit('fit potential outside bounds')
 #            mass= roundmasstoequal(mass=mass,sigfigs=sigfigs,dq1=np.divide(mw1,mass[0]),dq2=np.divide(mw2,mass[1]))
