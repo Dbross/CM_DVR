@@ -80,7 +80,7 @@ class q:
         triali=[]
         trialj=[]
         vals=[]
-        mini, maxi,minj,maxj =int(round(0.5*self.numpoints)),self.numpoints*5, int(round(0.5*q_other.numpoints)),q_other.numpoints*5
+        mini, maxi,minj,maxj =int(round(0.5*self.numpoints)),self.numpoints*3, int(round(0.5*q_other.numpoints)),q_other.numpoints*3
         if uselowest:
             mini, minj =min(mini,21), min(minj,21)
 #        if mingrid:
@@ -90,16 +90,18 @@ class q:
             """ modify grid of two radial coordinates to make mass weighting equal"""
             c=[self.maxval, self.minval, q_other.maxval, q_other.minval]
             if innerbound:
-                minbnds=(multiply(self.maxval,0.8),multiply(self.minval,1.000000001),\
-                        multiply(q_other.maxval,0.8),multiply(q_other.minval,1.000000001))
-                maxbnds=(multiply(self.maxval,0.9999999999),multiply(self.minval,1.3),\
-                        multiply(q_other.maxval,0.9999999999),multiply(q_other.minval,1.3))
+                minbnds=(multiply(self.maxval,0.8),multiply(self.minval,1.000000010),\
+                        multiply(q_other.maxval,0.8),multiply(q_other.minval,1.000000010))
+                maxbnds=(multiply(self.maxval,0.9999999989),multiply(self.minval,1.3),\
+                        multiply(q_other.maxval,0.9999999989),multiply(q_other.minval,1.3))
             else:
                 minbnds=(multiply(self.maxval,0.9),multiply(self.minval,0.9),\
                         multiply(q_other.maxval,0.9),multiply(q_other.minval,0.9))
                 maxbnds=(multiply(self.maxval,1.1),multiply(self.minval,1.1),\
                         multiply(q_other.maxval,1.1),multiply(q_other.minval,1.1))
             bnds=list(zip(minbnds,maxbnds))
+            print('Bounds')
+            print(bnds)
             mingridsolutionfound=False
             for i in range(self.numpoints,mini, -1):
                 for j in range(q_other.numpoints,minj, -1):

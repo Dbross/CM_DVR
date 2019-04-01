@@ -28,6 +28,7 @@ def constants(CODATA_year=2010):
         from sys import exit
         exit('Constants not found')
     bohr= (float(5) * light_speed * electron_charge**2)/ (planckconstant*rydberg) 
+#  bohr= 0.529177211336457
     hartreetocm= 2*rydberg
 #    hartreetocm=219474.6313717
 
@@ -276,7 +277,7 @@ class potential:
         Esort=multiply(self.eigenval,hartreetocm)
         Etoprint=int(len(Esort)/2)
         for x in range(Etoprint):
-            print('{0:.{1}f}'.format(round(Esort[x],num_print_digits),num_print_digits))
+            print('{3} | {0:.{1}f} | {2:.{1}f}'.format(round(Esort[x],num_print_digits),num_print_digits,round(Esort[x]-Esort[0],num_print_digits),x))
 
     def spline1dpot(self,pts,mass,coordtypes,Energies_raw,r_raw):
         """ 1d cubic spline and solve. """
@@ -348,18 +349,43 @@ class potential:
             plt.title('Cubic-spline interpolation')
             plt.axis()
             plt.show(block=True)
-#            plt.figure()
-#            plt.title('ground state')
-#            plt.plot(r[0],Energies/np.max(Energies))
-#            plt.plot(r[0],np.square(eigenvec[0]),marker='o')
-#            plt.plot(r[0],eigenvec[0],marker='x')
-#            plt.show(block=False)
-#            plt.figure()
-#            plt.title('v=1 state')
-#            plt.plot(r[0],Energies/np.max(Energies))
-#            plt.plot(r[0],eigenvec[1],marker='o')
-#            plt.plot(r[0],np.square(eigenvec[1]),marker='x')
-#            plt.show(block=True)
+            plt.figure()
+            plt.title('ground state')
+            plt.plot(r[0],Energies/np.max(Energies))
+            plt.plot(r[0],np.square(eigenvec[0]),marker='o')
+            plt.plot(r[0],eigenvec[0],marker='x')
+            plt.show(block=False)
+            plt.figure()
+            plt.title('v=2 state')
+            plt.plot(r[0],Energies/np.max(Energies))
+            plt.plot(r[0],np.square(eigenvec[2]),marker='o')
+            plt.plot(r[0],eigenvec[2],marker='x')
+            plt.show(block=False)
+            plt.figure()
+            plt.title('v=1 state')
+            plt.plot(r[0],Energies/np.max(Energies))
+            plt.plot(r[0],eigenvec[1],marker='o')
+            plt.plot(r[0],np.square(eigenvec[1]),marker='x')
+            plt.figure()
+            plt.title('v=3 state')
+            plt.plot(r[0],Energies/np.max(Energies))
+            plt.plot(r[0],eigenvec[3],marker='o')
+            plt.plot(r[0],np.square(eigenvec[3]),marker='x')
+            plt.show(block=False)
+            plt.figure()
+            plt.title('v=4 state')
+            plt.plot(r[0],Energies/np.max(Energies))
+            plt.plot(r[0],eigenvec[4],marker='o')
+            plt.plot(r[0],np.square(eigenvec[4]),marker='x')
+            plt.show(block=False)
+            plt.figure()
+            plt.title('v=5 state')
+            plt.plot(r[0],Energies/np.max(Energies))
+            plt.plot(r[0],eigenvec[5],marker='o')
+            plt.plot(r[0],np.square(eigenvec[5]),marker='x')
+            plt.show(block=False)
+
+            plt.show(block=True)
 
     def fit1dpot(self):
         """ Analytical 1d fit. The functional form doesn't work well here for wags, although it does work well for torsions. """
@@ -467,11 +493,27 @@ class potential:
             """ It is possible to override points and grid to be fit to here... Thinking about adding a manual option but unsure why I'd do that..."""
             qmax0,qmin0,pts[0]=np.max(a[0].grid),np.min(a[0].grid),a[0].numpoints
             qmax1,qmin1,pts[1]=np.max(a[1].grid),np.min(a[1].grid),a[1].numpoints
+            grid_x, grid_y = np.mgrid[qmin0:qmax0:pts[0]*1j,qmin1:qmax1:pts[1]*1j]
             print('NEW: {0:.4f}-{1:.4f} pts {2} {3:.4f}-{4:.4f} pts {5}'\
                     .format(qmin0,qmax0,pts[0],qmin1,qmax1,pts[1]))
             from sys import exit
             if np.subtract(qmax1,org[3])>0.0:
-                if np.subtract(qmax1,org[3])<1E-11:
+                if self.coordtypes[1]=='phi':
+                    r0=[]
+                    e0=[]
+                    qmin1original =np.copy(np.min(r[1]))
+                    print(qmin1original)
+                    for x in range(len(Energies)):
+                        if np.less(np.abs(np.subtract(r[1][x],qmin1original)),1e-08):
+                            r0.append([r[0][x],2*np.pi])
+                            e0.append(Energies[x])
+                    r1=np.array(r0,dtype=eval(numpy_precision))
+                    r1=r1.transpose()
+                    e1=np.array(e0,dtype=eval(numpy_precision))
+                    r=np.concatenate((r,r1), axis=1)
+                    print('new')
+                    Energies=np.concatenate((Energies,e1), axis=0)
+                elif np.subtract(qmax1,org[3])<1E-11:
                     qmax1=org[3]
                 else:
                     exit('max of coordinate 1 exceeds potential')
@@ -492,6 +534,16 @@ class potential:
                     exit('min of coordinate 1 exceeds potential')
             grid_x, grid_y = np.mgrid[qmin0:qmax0:pts[0]*1j,qmin1:qmax1:pts[1]*1j]
             vfit= griddata(np.transpose(np.array(r)),Energies,(grid_x,grid_y),method='cubic')
+            txt=open('new.pot','w')
+            for x in range(len(grid_x)):
+                for y in range(len(grid_x)):
+                    txt.write(str(grid_x[x][y]))
+                    txt.write(' ')
+                    txt.write(str(grid_y[x][y]))
+                    txt.write(' ')
+                    txt.write(str(vfit[x][y]))
+                    txt.write('\n')
+            txt.close()
             if np.any(np.isnan(vfit)):
                 exit('fit potential outside bounds')
 #            mass= roundmasstoequal(mass=mass,sigfigs=sigfigs,dq1=np.divide(mw1,mass[0]),dq2=np.divide(mw2,mass[1]))
@@ -1026,12 +1078,12 @@ def main():
 #        pot.xlsx()
 #       pot.fit1dpot()
         pot.solve()
-        from mpi4py import MPI
-        comm = MPI.COMM_WORLD
-        rank = comm.Get_rank()
-        if len(pot.fiteignum)>0 and rank==0:
+#        from mpi4py import MPI
+#        comm = MPI.COMM_WORLD
+#        rank = comm.Get_rank()
+        if len(pot.fiteignum)>0: # and rank==0:
             pot.fitfundamental()
-        if pot.printeigenval==True and rank==0:
+        if pot.printeigenval==True: # and rank==0:
             pot.printeigenvals()
 
 # jacobian stuff
