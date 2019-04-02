@@ -296,21 +296,12 @@ def frr(c,m1,m2,pts1,pts2):
     mw1=multiply(power(divide(subtract(c[0],c[1]),subtract((pts1),1)),2),m1)
     mw2=multiply(power(divide(subtract(c[2],c[3]),subtract((pts2),1)),2),m2)
     return abs(subtract(mw2,mw1))
-    
-#    return add(abs(subtract(mw2,mw1)),multiply(0.01,add(abs(subtract(int(c[2]),c[2])),abs(subtract(int(c[5]),c[5])))))
 
 def frang(c,m1,m2,q2range,pts1,pts2):
     """Minimization function for a radial and an angular coordinate"""
     from numpy import subtract, power, round, divide, multiply
     mw1=multiply(power(divide(subtract(c[0],c[1]),subtract((pts1),1)),2),m1)
     mw2=multiply(power(divide(q2range,subtract((pts2),1)),2),m2)
-    return abs(subtract(mw2,mw1))
-
-def fmassmass(c,dq1,dq2,sigfigs):
-    """Minimization function to round two masses"""
-    from numpy import subtract, power, round, divide, multiply
-    mw1=multiply(dq1,round_to_n(c[0],sigfigs))
-    mw2=multiply(dq2,round_to_n(c[1],sigfigs))
     return abs(subtract(mw2,mw1))
 
 def fangang(m1,m2,q1range,q2range,pts1,pts2):
@@ -320,19 +311,21 @@ def fangang(m1,m2,q1range,q2range,pts1,pts2):
     mw2=multiply(power(divide(q2range,subtract(pts2,1)),2),m2)
     return abs(subtract(mw2,mw1))
 
-def round_to_1(x):
-    from math import log10, floor
-    return round(x, -int(floor(log10(abs(x)))))
-
-def round_to_n(x,n):
-    from math import log10, floor
-    return round(x, -int(floor(log10(x))) + (n - 1)) 
-
-def significantdigit(x,n):
-    from math import log10, floor
-    return -int(floor(log10(x))) + (n - 1) 
-
 def massweightequal(dq1,m1,dq2,m2,printerrors=False):
+    """ Function that takes the spacings of coordinates, their reduced masses, and returns True/False if they are equivalent to 1e-7.
+
+    Args:
+
+    | dq1 (float): spacing of first dimension in a.u.
+    | m1 (float): mass in a.u. of first dimension
+    | dq1 (float): spacing of second dimension in a.u.
+    | m2 (float): mass in a.u. of the second dimension
+    | printerrors(bool): If true, verbosely print when unequal
+
+    Returns:
+
+    | bool: True if equal, False otherwise.
+    """
     from numpy import subtract, power, multiply
     if abs(subtract(multiply(power(dq1,2),m1),multiply(power(dq2,2),m2)))> 1.0E-07:
         if printerrors:
@@ -341,19 +334,6 @@ def massweightequal(dq1,m1,dq2,m2,printerrors=False):
             print(m1*dq1**2,m2*dq2**2)
         return False
     return True
-
-def roundmasstoequal(mass=[],sigfigs=3,dq1=0.01,dq2=0.01):
-    """ minimize rounded mass mwcoord diff"""
-    from scipy.optimize import minimize
-    from numpy import add, subtract
-    minbnds=(subtract(mass[0],10**significantdigit(mass[0],sigfigs)),subtract(mass[1],10**significantdigit(mass[1],sigfigs))) 
-    maxbnds=(add(mass[0],10**significantdigit(mass[0],sigfigs)),add(mass[1],10**significantdigit(mass[1],sigfigs))) 
-    c=mass
-    bnds=list(zip(minbnds,maxbnds))
-    result=minimize(fmassmass,c,args=(dq1,dq2,sigfigs),bounds=bnds)
-    mass[0] = round_to_n(c[0],sigfigs)
-    mass[1] = round_to_n(c[1],sigfigs)
-    return mass
 
 def silentmweq(inpcoord=[],mingrid=False,uselowest=False):
     """ symmetry equivalence coords

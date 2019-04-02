@@ -429,7 +429,7 @@ class potential:
         """ 2d rectangular bivariate spline. Uses functions from potgen to change spacing  when massweighted spacing in rectangular grid is not identical. Writes numpy arrays out into tmp.eig.h5 so they can be plotted after solution"""
         import numpy as np
         from scipy.interpolate import griddata
-        from potgen import silentmweq, roundmasstoequal
+        from potgen import silentmweq
         if self.preplot:
             for x in range(len(self.preplotval)):
                 if(x==0):
@@ -557,8 +557,6 @@ class potential:
             txt.close()
             if np.any(np.isnan(vfit)):
                 exit('fit potential outside bounds')
-#            mass= roundmasstoequal(mass=mass,sigfigs=sigfigs,dq1=np.divide(mw1,mass[0]),dq2=np.divide(mw2,mass[1]))
-#            print('using {2} sig figs of reduced mass of [{0:.{3}e}, {1:.{3}e}] amu.'.format(float(mass[0]),float(mass[1]),sigfigs,sigfigs-1))
             self.useprevpoint=True
             self.prevpoints=pts
             if self.petsc:
@@ -570,8 +568,6 @@ class potential:
                         qmax=[qmax0,qmax1],qmin=[qmin0,qmin1],coordtype=coordtypes)
                 eigenval, eigenvec=np.linalg.eigh(Ham)
         else:   
-#            mass= roundmasstoequal(mass=mass,sigfigs=sigfigs,dq1=np.divide(mw1,mass[0]),dq2=np.divide(mw2,mass[1]))
-#            print('using {2} sig figs of reduced mass of [{0:.{3}e}, {1:.{3}e}] amu.'.format(float(mass[0]),float(mass[1]),sigfigs,sigfigs-1))
             if self.petsc:
                 eigenval=H_array_petsc(pts=pts,mass=mass,V=Energies,qmax=np.amax(r,axis=1),qmin=np.amin(r,axis=1),\
                         coordtype=coordtypes,numeig=self.numsol,printpetsc=self.printpetsc)
@@ -698,14 +694,16 @@ def plot2d(x,y,z,wavenumber=False,wavenumbercutoff=10000,angular=True,norm=False
 #        levs=range(0,wavenumbercutoff,100)
     else:
         levs=np.linspace(float(np.min(z)),float(np.max(z)),100)
-    xlen=len(set(x))
-    ylen=len(set(y))
+    xlen=complex(len(set(x)))
+    ylen=complex(len(set(y)))
     if angular:
         x=(x*180/np.pi)
         y=(y*180/np.pi)
-    xi=np.linspace(min(x),max(x),xlen)
-    yi=np.linspace(min(y),max(y),ylen)
-    zi=ml.griddata(x,y,z,xi,yi,interp='nn')
+    #xi=np.linspace(min(x),max(x),xlen)
+    #yi=np.linspace(min(y),max(y),ylen)
+    xi, yi= np.mgrid[min(x):max(x):xlen, min(y):max(y):ylen]
+    from scipy.interpolate import griddata
+    zi=griddata((x,y),z,(xi,yi),method='cubic')
     plt.figure()
 #    cp=plt.contour(xi,yi,zi,cmap=(plt.cm.gnuplot),origin='lower',levels=levs)
     cp=plt.contourf(xi,yi,zi,cmap=(plt.cm.gnuplot),origin='lower',levels=levs)
@@ -956,7 +954,7 @@ def H_array_1d(pts=5,coordtype='r',mass=0.5,qmin=1.0,qmax=2.0):
                     A[i,i]=np.multiply(prefactor,np.subtract(\
                             np.divide(np.add(np.multiply(2,np.power(n1,2)),1),3),np.power(np.sin(np.divide(np.multiply(np.add(i,1),np.pi),n1)),-2)))
                 else:
-                    A[i,j]=np.multiply(np.multiply(prefactor,np.power(-1,np.subtract(i,j)))\
+                    A[i,j]=np.multiply(np.multiply(prefactor,np.power(-1.0,np.subtract(i,j)))\
                             ,np.subtract(np.power(np.sin(np.divide(np.multiply(np.pi,np.subtract(i,j)) , np.multiply(2 ,n1) )),-2) , \
                             np.power(np.sin(np.divide(np.multiply(np.pi,np.add(i,np.add(j,2))) , np.multiply(2 , n1))),-2)))
 # 0 to 2pi in appendix A section 4
@@ -971,7 +969,7 @@ def H_array_1d(pts=5,coordtype='r',mass=0.5,qmin=1.0,qmax=2.0):
                 else:
                     cosij=np.cos(np.divide(np.multiply(np.pi,np.subtract(i,j)),n))
                     A[np.sum(i),np.sum(j)]=\
-                            np.multiply(np.multiply(np.power(-1,np.subtract(i,j)),prefactor),np.divide(cosij,np.multiply(2,np.subtract(1,np.power(cosij,2)))))
+                            np.multiply(np.multiply(np.power(-1.0,np.subtract(i,j)),prefactor),np.divide(cosij,np.multiply(2,np.subtract(1,np.power(cosij,2)))))
             elif coordtype=='theta':
                 n1=pts+1
                 prefactor=np.divide(1.0,np.multiply(4,mass_conv))
@@ -979,7 +977,7 @@ def H_array_1d(pts=5,coordtype='r',mass=0.5,qmin=1.0,qmax=2.0):
                     A[i,i]=np.multiply(prefactor,np.subtract(\
                             np.divide(np.add(np.multiply(2,np.power(n1,2)),1),3),np.power(np.sin(np.divide(np.multiply(np.add(i,1),np.pi),n1)),-2)))
                 else:
-                    A[i,j]=np.multiply(np.multiply(prefactor,np.power(-1,np.subtract(i,j)))\
+                    A[i,j]=np.multiply(np.multiply(prefactor,np.power(-1.0,np.subtract(i,j)))\
                             ,np.subtract(np.power(np.sin(np.divide(np.multiply(np.pi,np.subtract(i,j)) , np.multiply(2 ,n1) )),-2) , \
                             np.power(np.sin(np.divide(np.multiply(np.pi,np.add(i,np.add(j,2))) , np.multiply(2 , n1))),-2)))
                 pass
