@@ -52,8 +52,8 @@ master_doc = 'index'
 
 # General information about the project.
 project = 'Multidimensional DVR'
-copyright = '2016, David H Bross'
-author = 'David H Bross'
+copyright = '2019, David H Bross'
+author = 'David H Bross and Branko Ruscic'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -228,7 +228,7 @@ latex_elements = {
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
     (master_doc, 'MultidimensionalDVR.tex', 'Multidimensional DVR Documentation',
-     'David H Bross', 'manual'),
+     'David H Bross and Branko Ruscic', 'manual'),
 ]
 
 # The name of an image file (relative to this directory) to place at the top of

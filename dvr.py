@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-""" This program was written following 
-Citation: The Journal of Chemical Physics 96, 1982 (1992); doi: 10.1063/1.462100
-as a guide """
+""" This program was written as an implementation following
+Citation: Colbert, D. T.;  Miller, W. H. A Novel Discrete Variable Representation for Quantum-Mechanical Reactive Scattering via the S-Matrix Kohn Method. J. Chem. Phys. **1992**, 96, 1982–1991. http://doi.org/10.1063/1.462100
+It is designed to take a relaxed scan of a 1-d or 2-d potential energy surface and return the eigenvalues from this surface. It additionally has the functionality to save and plot the wavefunctions of these surfaces. 
+ """
 from builtins import (bytes, str, open, super, range, zip, round, input, int, pow, object)
 
 def constants(CODATA_year=2010):
@@ -33,7 +34,7 @@ def constants(CODATA_year=2010):
 #    hartreetocm=219474.6313717
 
 class potential:
-    """ The Potential Energy Surface Class."""
+    """ The Potential Energy Surface (PES) Class stores all information associated with a single PES, starting from parsing the input."""
 # anyline starting with ! or # is commented out
     def __init__(self):
         self.r=[]
@@ -58,29 +59,39 @@ class potential:
         self.printpetsc=False
 
     def readpotential(self,inp):
-        """ Read the .pot file ! or # comment out a line, 
-        minimum input
-        type
-        mass
-        units
-        q1, q2, ... Energy [PES, ordered by qn changing first, then q(n-1), q1 changes the slowest]
-        Input keywords
-        available types:  angular_2pi , radial , angular_pi (1 per dimension of potential on a single line)
-        bohr: use bohr for radial coordinates
-        angstrom: use angstrom for radial coordinates
-        mass= float (1 per dimension of potential) : reduced mass (or moment of intertia) to use
-        plotit integer [number of eigenvalues to print] : plot the potential into pdfs
-        preplot integer [number of wavenumbers desired for potential] (repeated per number of plots desired): interactive feature to plot before solving potential
-        minpos = float (1 per dimension of potential) : position of minimum for reduced mass fit
-        harmonic =  float (1 per dimension of potential) : harmonic frequency to fit reduced mass to
-        emin = float : subtracts this value from the entire potential
-        printderiv :prints the derivitives
-        petsc integer [number of eigenvalues to solve for]:  use PETSC rather than mkl for solution, should be used with MPI
-        Keywords still under development
+        """A parser that reads the input potential energy surface.
+
+        Args:
+            inp: A text input file
+        Returns:
+            Nothing. 
+
+        Readpotential parses a textfile input and stores the relevant input options, 
+        along with the potential energy surface, within the Potential class.
+
+        | ! or # at the begining of a line will comment out a line, causing parser to ignore the line entirely
+        | minimum input
+        | type
+        | mass
+        | units
+        | q1, q2, ... Energy [PES, ordered by qn changing first, then q(n-1), q1 changes the slowest]
+        | Input keywords
+        | types:  angular_2pi , radial , angular_pi (1 per dimension of potential on a single line)
+        | mass= float (1 per dimension of potential) : reduced mass (or moment of intertia) to use
+        | bohr: use bohr for radial coordinates
+        | angstrom: use angstrom for radial coordinates
+        | plotit integer [number of eigenvalues to print] : plot the potential into pdfs
+        | preplot integer [number of wavenumbers desired for potential] (repeated per number of plots desired): interactive feature to plot before solving potential
+        | minpos = float (1 per dimension of potential) : position of minimum for reduced mass fit
+        | harmonic =  float (1 per dimension of potential) : harmonic frequency to fit reduced mass to
+        | emin = float : subtracts this value from the entire potential
+        | printderiv :prints the derivitives
+        | petsc integer [number of eigenvalues to solve for]:  use PETSC rather than mkl for solution, should be used with MPI
+        | Keywords still under development
         fiteigval float (repeat per number of eigenvals to fit to) :eigenvalue desired to fit to
         fiteignum integer (repeat per number of eigenvals to fit to) : eigenvalue solution number for fitting
-        All other lines should have 
-        rest of lines should just have potential
+        | All other lines should have 
+        | rest of lines should just have potential
         """
         commentoutchars=['!','#']
         types=['angular_2pi','radial','angular_pi']
@@ -272,7 +283,7 @@ class potential:
         return tot
     
     def printeigenvals(self):
-        """Prints half the eigenvalues, based on the conclusions of Colbert and Miller for the range of valid eigenvalues"""
+        """Prints first half the eigenvalues, based on the conclusions of Colbert and Miller for the range of valid eigenvalues"""
         from numpy import multiply
         Esort=multiply(self.eigenval,hartreetocm)
         Etoprint=int(len(Esort)/2)
@@ -486,11 +497,11 @@ class potential:
         mw1=mwspace(coordtype=coordtypes[0],rlen=rlen0,mass=mass[0],pts=pts[0])
         mw2=mwspace(coordtype=coordtypes[1],rlen=rlen1,mass=mass[1],pts=pts[1])
         if np.abs(np.subtract(mw1,mw2))>1.0E-07 or self.mingrid:
-            """ Adjust potential to have equal massweighted spacing"""
+            #""" Adjust potential to have equal massweighted spacing"""
             print('Mass weighting unequal, adjusting grid\n OLD: {0:.4f}-{1:.4f} pts {2} {3:.4f}-{4:.4f} pts {5}'\
                     .format(float(qmin0),float(qmax0),int(pts[0]),float(qmin1),float(qmax1),int(pts[1])))
             a=silentmweq([ [qmax0,qmin0,coordtypes[0],pts[0],mass[0]], [qmax1,qmin1,coordtypes[1],pts[1],mass[1]] ],mingrid=self.mingrid,uselowest=self.useprevpoint)
-            """ It is possible to override points and grid to be fit to here... Thinking about adding a manual option but unsure why I'd do that..."""
+            #""" It is possible to override points and grid to be fit to here... Thinking about adding a manual option but unsure why I'd do that..."""
             qmax0,qmin0,pts[0]=np.max(a[0].grid),np.min(a[0].grid),a[0].numpoints
             qmax1,qmin1,pts[1]=np.max(a[1].grid),np.min(a[1].grid),a[1].numpoints
             grid_x, grid_y = np.mgrid[qmin0:qmax0:pts[0]*1j,qmin1:qmax1:pts[1]*1j]
@@ -572,7 +583,7 @@ class potential:
         if not self.petsc:
             self.eigenval, eigenvec= eigenval[eindex], np.transpose(eigenvec[:,eindex])
 #        from scipy.sparse.linalg import eigs
-        """ Sparse solver doesn't give speedup for computing eigenvalues of all solutions.... """
+#        """ Sparse solver unfortunately doesn't give speedup for computing eigenvalues of all solutions.... """
 #       eigenval, eigenvec=eigs(Ham,k=int((pts[0]*pts[1])-2),sigma=0,M=None,which='LM')
         Esort=np.multiply(self.eigenval,hartreetocm)
         if saveeigen and not self.petsc:
@@ -823,22 +834,27 @@ def H_array_petsc(pts=5,coordtype=['r'],mass=[0.5],qmin=[1.0],qmax=[2.0],V=[],nu
     return (eigenval)
 
 def H_array(pts=5,coordtype=['r'],mass=[0.5],qmin=[1.0],qmax=[2.0],V=[]):
-    """ normal numpy array generation, returns 2d array for solution, conventionally done by mkl
-    input 
-    pts=points , coordtype (dict values r, phi, theta), qmin=list(qminimia), qmax=list(qmaxima), V=potential
-    output
-    2d DVR array based on
-    Kinetic Energy Array (dimensionality=2): see Eq A6a and A6b of JCP 96, 1982 (1992): note 
+    """ Generate the 2d array to be solved by some method.
+    
+    Args:
+
+    | pts (list of int): The number of points in each dimension
+    | coordtype (list of str): (dict values r, phi, theta)
+    | mass (list of float): the reduced mass for each dimension given in amu, converted to atomic units here. For angular coordinates this is a moment of inertia in units of amu * bohr^2.
+    | qmin (list of float): the minimum q value for each dimension
+    | qmax (list of float): the maximum q value for each dimension
+    | V (list of float): The potential energy surface values
+
+    Returns:
+
+    2d DVR array that can be solved for eigenvalues and functions.
+    the Kinetic Energy Array (dimensionality=2)
+    : see Eq A6a and A6b of JCP 96, 1982 (1992): note 
     constants are defined in constants module globally earlier
     The Hamiltonian has been converted to atomic units, e.g.
     H =  - [1/(2 am)] d^2/dx^2 + v(x)
-    ncoord must be passed, simplest is 1 for a 1D potential
-    note a and b always occur outside of the potential!!!
-    for 0 to 2 pi only one of the two is included
-    The massweighted spacing. All coordinates must use the same
-    pts is the number of points per coordinate
-    mass given in amu; converted to atomic units here
-    For angular coordinates this is instead  a moment of intertia in units of amu * bohr^2 """
+    
+    """
     import numpy as np
     np.set_printoptions(suppress=False,threshold=np.nan,linewidth=np.nan)
     ncoord=len(coordtype)
@@ -903,7 +919,25 @@ def H_array(pts=5,coordtype=['r'],mass=[0.5],qmin=[1.0],qmax=[2.0],V=[]):
     return A
 
 def H_array_1d(pts=5,coordtype='r',mass=0.5,qmin=1.0,qmax=2.0):
-    """ Returns single coordinate 2d array necessary for multidimensional coordinate array generation"""
+    """ Returns single coordinate 2d array necessary for multidimensional coordinate array generation
+
+    args:
+
+    | pts (int): The number of points
+    | coordtype (str): (dict values r, phi, theta)
+    | mass (float): the reduced mass for each dimension given in amu, converted to atomic units here. For angular coordinates this is a moment of inertia in units of amu * bohr^2.
+    | qmin (float): the minimum q value for each dimension
+    | qmax (float): the maximum q value for each dimension
+
+    Returns:
+
+    2d Kinetic Energy Array (dimensionality=2) for this dimension alone
+    : see Eq A6a and A6b of JCP 96, 1982 (1992): note 
+    constants are defined in constants module globally earlier
+    The Hamiltonian has been converted to atomic units, e.g.
+    H =  - [1/(2 am)] d^2/dx^2 + v(x)
+    
+    """
     import numpy as np
     n=pts
     A=np.zeros((n,n),dtype=eval(numpy_precision))
@@ -1062,40 +1096,22 @@ def main():
     constants(CODATA_year=2010)
     import numpy as np
     import sys
-
-    """ overloaded call... I may split this out later"""
-    if len(sys.argv)>1 and 'h5' in sys.argv[1]:
-        if len(sys.argv)>2:
-            loadeigen(eigfile=sys.argv[1],eigenvectoplot=int(sys.argv[2]))
-        else:
-            loadeigen(eigfile=sys.argv[1],eigenvectoplot=int(input('number of eigenvectors to plot:'))) 
+    pot=potential()
+    if len(sys.argv)>1:
+        pot.readpotential(inp=sys.argv[1])
     else:
-        pot=potential()
-        if len(sys.argv)>1:
-            pot.readpotential(inp=sys.argv[1])
-        else:
-            pot.readpotential(inp=input('Give the file with the potential: '))
-#        pot.xlsx()
-#       pot.fit1dpot()
-        pot.solve()
-#        from mpi4py import MPI
-#        comm = MPI.COMM_WORLD
-#        rank = comm.Get_rank()
-        if len(pot.fiteignum)>0: # and rank==0:
-            pot.fitfundamental()
-        if pot.printeigenval==True: # and rank==0:
-            pot.printeigenvals()
+        pot.readpotential(inp=input('Give the file with the potential: '))
+#    pot.xlsx()
+#   pot.fit1dpot()
+    pot.solve()
+#    from mpi4py import MPI
+#    comm = MPI.COMM_WORLD
+#    rank = comm.Get_rank()
+    if len(pot.fiteignum)>0: # and rank==0:
+        pot.fitfundamental()
+    if pot.printeigenval==True: # and rank==0:
+        pot.printeigenvals()
 
-# jacobian stuff
-#    A = array([[2.0,1.0],[5.0,7.0]])
-#    b = array([11.0,13.0])
-#    guess = array([1.0,1.0])
-#    import numpy as np
-#    sol = jacobi(A,b,N=25,x=guess)
-#    from pprint import pprint
-#    pprint(sol)
-#    from sys import exit
-#    exit()
 
 if __name__=="__main__":
     main()
