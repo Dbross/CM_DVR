@@ -57,6 +57,7 @@ class potential:
         self.prevpoints=[]
         self.petsc=False
         self.printpetsc=False
+        self.eigenvalue_calc=False
 
     def readpotential(self,inp):
         """A parser that reads the input potential energy surface.
@@ -249,7 +250,10 @@ class potential:
         else:
             raise ValueError("not implemented for %d dimensions" % (len(self.coordtypes)))
             Ham=H_array(pts=pts,mass=mass,V=Energies,qmax=np.amax(r,axis=1),qmin=np.amin(r,axis=1),coordtype=coordtypes)
-            eigenval, eigenvec=np.linalg.eigh(Ham)
+            if self.eigenvalue_calc:
+                eigenval, eigenvec=np.linalg.eigh(Ham)
+            else:
+                eigenval=np.linalg.eigvalsh(Ham)
             Esort=np.sort(eigenval*hartreetocm)
             Etoprint=int(len(Esort)/2)
             for x in range(Etoprint):
@@ -319,9 +323,12 @@ class potential:
         xnew = np.linspace(min(r[0]),max(r[0]), num=num_points)
         vfit= splev(xnew, Ener_spline, der=0)
         Ham=H_array(pts=pts,mass=mass,V=Energies,qmax=np.amax(r,axis=1),qmin=np.amin(r,axis=1),coordtype=coordtypes)
-        eigenval, eigenvec=np.linalg.eigh(Ham)
-        eindex=np.argsort(eigenval)
-        self.eigenval, eigenvec= eigenval[eindex], np.transpose(eigenvec[:,eindex])
+        if self.eigenvalue_calc:
+            eigenval, eigenvec=np.linalg.eigh(Ham)
+            eindex=np.argsort(eigenval)
+            self.eigenval, eigenvec= eigenval[eindex], np.transpose(eigenvec[:,eindex])
+        else:
+            eigenval=np.linalg.eigvalsh(Ham)
         Esort=(self.eigenval*hartreetocm)
         Etoprint=int(len(Esort)/2)
         maxpot=np.max(vfit)*hartreetocm
@@ -441,14 +448,18 @@ class potential:
         sigfigs=4
         qmin0 =np.copy(np.min(r[0]))
         qmax0 =np.copy(np.max(r[0]) )
+        if coordtypes[0]=='phi':
+            qmax0=np.pi*2
         qmin1 =np.copy(np.min(r[1]) )
         qmax1 =np.copy(np.max(r[1]) )
+        if coordtypes[1]=='phi':
+            qmax1=np.pi*2
         org=[qmin0,qmax0,qmin1,qmax1]
         """ rlen is (max-min) of potential, scaled to b-a by adding two more points!"""
         rlen0=np.multiply(np.subtract(qmax0,qmin0),np.divide(np.add(float(pts[0]),1.0),np.subtract(float(pts[0]),1.0)))
         rlen1=np.multiply(np.subtract(qmax1,qmin1),np.divide(np.add(float(pts[1]),1.0),np.subtract(float(pts[1]),1.0)))
         if len(self.harmonicfreq)==2 and not self.massadjust:
-            from scipy.interpolate import RectBivariateSpline, bisplev, bisplrep, spleval
+            from scipy.interpolate import RectBivariateSpline, bisplrep
             cubic2dspline= RectBivariateSpline(np.unique(r[0]), np.unique(r[1]),  np.reshape(Energies,(pts[0],pts[1])),s=1e-6)
             from scipy.optimize import minimize
             minbnds=(qmin0,qmin1)
@@ -566,23 +577,29 @@ class potential:
             else:
                 Ham=H_array(pts=pts,mass=mass,V=np.ndarray.flatten(vfit),\
                         qmax=[qmax0,qmax1],qmin=[qmin0,qmin1],coordtype=coordtypes)
-                eigenval, eigenvec=np.linalg.eigh(Ham)
+                if self.eigenvalue_calc:
+                    eigenval, eigenvec=np.linalg.eigh(Ham)
+                else:
+                    eigenval=np.linalg.eigvalsh(Ham)
         else:   
             if self.petsc:
                 eigenval=H_array_petsc(pts=pts,mass=mass,V=Energies,qmax=np.amax(r,axis=1),qmin=np.amin(r,axis=1),\
                         coordtype=coordtypes,numeig=self.numsol,printpetsc=self.printpetsc)
             else:
                 Ham=H_array(pts=pts,mass=mass,V=Energies,qmax=np.amax(r,axis=1),qmin=np.amin(r,axis=1),coordtype=coordtypes)
-                eigenval, eigenvec=np.linalg.eigh(Ham)
+                if self.eigenvalue_calc:
+                    eigenval, eigenvec=np.linalg.eigh(Ham)
+                else:
+                    eigenval=np.linalg.eigvalsh(Ham)
         self.eigenval=eigenval.real.astype(eval(numpy_precision))
         eindex=np.argsort(eigenval)
-        if not self.petsc:
+        if not self.petsc and self.eigenvalue_calc:
             self.eigenval, eigenvec= eigenval[eindex], np.transpose(eigenvec[:,eindex])
 #        from scipy.sparse.linalg import eigs
 #        """ Sparse solver unfortunately doesn't give speedup for computing eigenvalues of all solutions.... """
 #       eigenval, eigenvec=eigs(Ham,k=int((pts[0]*pts[1])-2),sigma=0,M=None,which='LM')
         Esort=np.multiply(self.eigenval,hartreetocm)
-        if saveeigen and not self.petsc:
+        if saveeigen and not self.petsc and self.eigenvalue_calc:
             eigfile='tmp.eig.h5'
             from os.path import isfile
             if isfile(eigfile):
@@ -854,7 +871,6 @@ def H_array(pts=5,coordtype=['r'],mass=[0.5],qmin=[1.0],qmax=[2.0],V=[]):
     
     """
     import numpy as np
-    np.set_printoptions(suppress=False,threshold=np.nan,linewidth=np.nan)
     ncoord=len(coordtype)
     totpts=1
     for x in range(len(pts)):
