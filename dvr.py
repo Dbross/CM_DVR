@@ -292,7 +292,7 @@ class potential:
         Esort=multiply(self.eigenval,hartreetocm)
         Etoprint=int(len(Esort)/2)
         for x in range(Etoprint):
-            print('{3} | {0:.{1}f} | {2:.{1}f}'.format(round(Esort[x],num_print_digits),num_print_digits,round(Esort[x]-Esort[0],num_print_digits),x))
+            print('{3:8} | {0:20.{1}f} | {2:20.{1}f}'.format(round(Esort[x],num_print_digits),num_print_digits,round(Esort[x]-Esort[0],num_print_digits),x))
 
     def spline1dpot(self,pts,mass,coordtypes,Energies_raw,r_raw):
         """ 1d cubic spline and solve. """
@@ -459,9 +459,16 @@ class potential:
         rlen0=np.multiply(np.subtract(qmax0,qmin0),np.divide(np.add(float(pts[0]),1.0),np.subtract(float(pts[0]),1.0)))
         rlen1=np.multiply(np.subtract(qmax1,qmin1),np.divide(np.add(float(pts[1]),1.0),np.subtract(float(pts[1]),1.0)))
         if len(self.harmonicfreq)==2 and not self.massadjust:
-            from scipy.interpolate import RectBivariateSpline, bisplrep
-            cubic2dspline= RectBivariateSpline(np.unique(r[0]), np.unique(r[1]),  np.reshape(Energies,(pts[0],pts[1])),s=1e-6)
+            from scipy.interpolate import RectBivariateSpline, bisplrep, interp2d
             from scipy.optimize import minimize
+            try:
+                cubic2dspline= RectBivariateSpline(np.unique(r[0]), np.unique(r[1]),  np.reshape(Energies,(pts[0],pts[1])),s=1e-6)
+            except ValueError:
+                # handle non-rectangular grids
+                print('warning: using griddata to make a rectangular grid for derivitive evaluation')
+                grid_x, grid_y = np.mgrid[qmin0:qmax0:pts[0]*1j,qmin1:qmax1:pts[1]*1j]
+                vfit= griddata(np.transpose(np.array(r)),Energies,(grid_x,grid_y),method='cubic')
+                cubic2dspline= RectBivariateSpline(np.unique(grid_x),np.unique(grid_y), vfit,s=1e-6)
             minbnds=(qmin0,qmin1)
             maxbnds=(qmax0,qmax1)
             bnds=list(zip(minbnds,maxbnds))
@@ -469,10 +476,12 @@ class potential:
                 c=[ (qmin0+qmax0)/2.0, (qmin1+qmax1)/2.0]
             else:
                 c=[self.minpos[0],self.minpos[1]]
+
             result=minimize(return2dspline,c,args=(cubic2dspline,0,0),bounds=bnds,jac=return2dsplinetotder,method='L-BFGS-B')
             x,y=result.x
             hessx=cubic2dspline.ev(x,y,dx=2) # calculate the second partial derivitive for dq0 at minimia
             hessy=cubic2dspline.ev(x,y,dy=2) # calculate the second partial derivitive for dq1 at minimia
+
             if (float(hessx) < 0) or (float(hessy) < 0):
                 print('Issues in hessian calculation, increase smoothing value in RectBivariateSpline in potential.spline2dpot to help')
                 self.plotit=True
@@ -557,8 +566,8 @@ class potential:
             grid_x, grid_y = np.mgrid[qmin0:qmax0:pts[0]*1j,qmin1:qmax1:pts[1]*1j]
             vfit= griddata(np.transpose(np.array(r)),Energies,(grid_x,grid_y),method='cubic')
             txt=open('new.pot','w')
-            for x in range(len(grid_x)):
-                for y in range(len(grid_x)):
+            for x in range(grid_x.shape[0]):
+                for y in range(grid_x.shape[1]):
                     txt.write(str(grid_x[x][y]))
                     txt.write(' ')
                     txt.write(str(grid_y[x][y]))
@@ -586,7 +595,13 @@ class potential:
                 eigenval=H_array_petsc(pts=pts,mass=mass,V=Energies,qmax=np.amax(r,axis=1),qmin=np.amin(r,axis=1),\
                         coordtype=coordtypes,numeig=self.numsol,printpetsc=self.printpetsc)
             else:
-                Ham=H_array(pts=pts,mass=mass,V=Energies,qmax=np.amax(r,axis=1),qmin=np.amin(r,axis=1),coordtype=coordtypes)
+                if len(Energies)==pts[0]*pts[1]:
+                    Ham=H_array(pts=pts,mass=mass,V=Energies,qmax=np.amax(r,axis=1),qmin=np.amin(r,axis=1),coordtype=coordtypes)
+                else:
+                    print('warning: using griddata to make a rectangular grid for DVR')
+                    grid_x, grid_y = np.mgrid[qmin0:qmax0:pts[0]*1j,qmin1:qmax1:pts[1]*1j]
+                    vfit= griddata(np.transpose(np.array(r)),Energies,(grid_x,grid_y),method='cubic')
+                    Ham=H_array(pts=pts,mass=mass,V=np.ndarray.flatten(vfit),qmax=np.amax(r,axis=1),qmin=np.amin(r,axis=1),coordtype=coordtypes)
                 if self.eigenvalue_calc:
                     eigenval, eigenvec=np.linalg.eigh(Ham)
                 else:
