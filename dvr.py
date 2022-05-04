@@ -328,7 +328,7 @@ class potential:
             eindex=np.argsort(eigenval)
             self.eigenval, eigenvec= eigenval[eindex], np.transpose(eigenvec[:,eindex])
         else:
-            eigenval=np.linalg.eigvalsh(Ham)
+            self.eigenval=np.linalg.eigvalsh(Ham)
         Esort=(self.eigenval*hartreetocm)
         Etoprint=int(len(Esort)/2)
         maxpot=np.max(vfit)*hartreetocm
@@ -710,7 +710,7 @@ def plot2dgrid(x,y,z,wavenumber=False,wavenumbercutoff=10000,angular=False,norm=
     else:
         plt.savefig(save)
 
-def plot2d(x,y,z,wavenumber=False,wavenumbercutoff=10000,angular=True,norm=False,block=False,legend=True,includegrid=False,title='2d filled contour plot',save='tmp.pdf'):
+def plot2d(x,y,z,wavenumber=False,wavenumbercutoff=10000,angular=False,norm=False,block=False,legend=True,includegrid=False,title='2d filled contour plot',save='tmp.pdf'):
     """ Flat x,y,z as input 2d plot"""
     import numpy as np
     import matplotlib.mlab as ml
@@ -819,7 +819,7 @@ def H_array_petsc(pts=5,coordtype=['r'],mass=[0.5],qmin=[1.0],qmax=[2.0],V=[],nu
     elif ncoord==2:
         D1add=np.equal(indices[0,:],indices[3,:])
         D2add=np.equal(indices[1,:],indices[2,:])
-        ijindex=np.array(np.meshgrid(np.arange(totpts),np.arange(totpts)),dtype=np.uint64).T.reshape(-1,2)
+        ijindex=np.array(np.meshgrid(np.arange(totpts),np.arange(totpts)),dtype=np.uint32).T.reshape(-1,2)
         ijrange=np.squeeze(np.where(np.logical_or(D1add,D2add))[0])
         localijrange=np.array_split(ijrange,totalproc)[rank]
         if rank==0 and printpetsc:
@@ -933,7 +933,7 @@ def H_array(pts=5,coordtype=['r'],mass=[0.5],qmin=[1.0],qmax=[2.0],V=[]):
     elif ncoord==2:
         D1add=np.equal(indices[0,:],indices[3,:])
         D2add=np.equal(indices[1,:],indices[2,:])
-        ijindex=np.array(np.meshgrid(np.arange(totpts),np.arange(totpts)),dtype=np.uint64).T.reshape(-1,2)
+        ijindex=np.array(np.meshgrid(np.arange(totpts),np.arange(totpts)),dtype=np.uint32).T.reshape(-1,2)
         ijrange=np.squeeze(np.where(np.logical_or(D1add,D2add))[0])
         for x in np.nditer(ijrange):
             if D1add[x]: 

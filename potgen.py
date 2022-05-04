@@ -365,6 +365,7 @@ def main():
     fieldlength=25
     modifiedinputfile='tmp.inp'
     outfile='tmp.pot'
+    writevararray=False
     numcoordinates=int(input('number of coordinates: '))
     coord=[]
     for x in range(int(numcoordinates)):
@@ -409,22 +410,23 @@ def main():
         txt.write(str(coordtypedict[coord[x].coordtype]) + ' ')
     for x in range(len(gridout)):
         txt.write('\n'+gridout[x])
-    txt.write('\n')
-    txt.write('---\n')
-    for x in range(numcoordinates):
-        coordset=sorted(set(coord[x].grid))
-        outstr='q'+str(x)+'(1:phh)=['
-        for y in range(len(coordset)): 
-            if len(outstr)<930 and y!=(len(coordset)-1):
-                outstr=outstr+str(coordset[y])+', '
-            elif len(outstr)>930:
-                txt.write(outstr[:-2].replace('phh',str(y))+']\n')
-                outstr='q'+str(numcoordinates)+'('+str(y+1)+':phh)=['
-                outstr=outstr+str(coordset[y])+', '
-            elif y==(len(coordset)-1):
-                outstr=outstr+str(coordset[y])
-                txt.write(outstr.replace('phh',str(y))+']\n')
+    if writevararray:
         txt.write('\n')
+        txt.write('---\n')
+        for x in range(numcoordinates):
+            coordset=sorted(set(coord[x].grid))
+            outstr='q'+str(x)+'(1:phh)=['
+            for y in range(len(coordset)): 
+                if len(outstr)<930 and y!=(len(coordset)-1):
+                    outstr=outstr+str(coordset[y])+', '
+                elif len(outstr)>930:
+                    txt.write(outstr[:-2].replace('phh',str(y))+']\n')
+                    outstr='q'+str(numcoordinates)+'('+str(y+1)+':phh)=['
+                    outstr=outstr+str(coordset[y])+', '
+                elif y==(len(coordset)-1):
+                    outstr=outstr+str(coordset[y])
+                    txt.write(outstr.replace('phh',str(y))+']\n')
+            txt.write('\n')
     txt.close()
     if isfile(modifiedinputfile):
         if 'y' not in input('input file (tmp.inp) exists, overwrite? [y,N]').lower():
