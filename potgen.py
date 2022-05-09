@@ -5,13 +5,14 @@ class q:
     """ Coordinate class"""
     r_unit=-1
     def __init__(self,maxval=0,minval=0,coordtype=0,mass=0,numpoints=0):
-        from numpy import multiply, divide, pi
+        from numpy import multiply, divide, pi, linspace, max, delete
         self.maxval=maxval
         self.minval=minval
         self.coordtype=coordtype
         self.numpoints=numpoints
         self.mass=mass
         if self.coordtype==1:
+            # needs to be adjusted, not accurate due to point deletion
             self.numpoints=self.numpoints+2
             self.maxval=pi
             self.minval=0.0
@@ -73,7 +74,7 @@ class q:
     def equivalencemwcoords(self,q_other,forcegrid=False,innerbound=True,autoselect=False,mingrid=False,startlow=False,uselowest=False):
         """ set the spacing of the two grids to be equal"""
         from scipy.optimize import minimize, basinhopping
-        from numpy import subtract, multiply, int, pi, add, abs, array, argmin, less, where, equal, mod
+        from numpy import subtract, multiply, pi, add, abs, array, argmin, less, where, equal, mod
         m1=self.mass
         m2=q_other.mass
         trialval=[]
@@ -242,7 +243,6 @@ class q:
                 if q_other.coordtype==2:
                     diffofgrid=where(equal(mod(trialj,2),0),diffofgrid,add(diffofgrid,1000))
                 import numpy as np
-                np.set_printoptions(suppress=False,threshold=np.nan,linewidth=np.nan)
                 itouse=argmin(diffofgrid)
 #                print(triali[itouse],trialj[itouse],diffofgrid[itouse],min(diffofgrid))
 #                print('{0} selected as point'.format(itouse))
@@ -362,9 +362,10 @@ def silentmweq(inpcoord=[],mingrid=False,uselowest=False):
         return coord
     
 def main():
-    fieldlength=18
+    fieldlength=25
     modifiedinputfile='tmp.inp'
     outfile='tmp.pot'
+    writevararray=False
     numcoordinates=int(input('number of coordinates: '))
     coord=[]
     for x in range(int(numcoordinates)):
@@ -409,22 +410,23 @@ def main():
         txt.write(str(coordtypedict[coord[x].coordtype]) + ' ')
     for x in range(len(gridout)):
         txt.write('\n'+gridout[x])
-    txt.write('\n')
-    txt.write('---\n')
-    for x in range(numcoordinates):
-        coordset=sorted(set(coord[x].grid))
-        outstr='q'+str(x)+'(1:phh)=['
-        for y in range(len(coordset)): 
-            if len(outstr)<930 and y!=(len(coordset)-1):
-                outstr=outstr+str(coordset[y])+', '
-            elif len(outstr)>930:
-                txt.write(outstr[:-2].replace('phh',str(y))+']\n')
-                outstr='q'+str(numcoordinates)+'('+str(y+1)+':phh)=['
-                outstr=outstr+str(coordset[y])+', '
-            elif y==(len(coordset)-1):
-                outstr=outstr+str(coordset[y])
-                txt.write(outstr.replace('phh',str(y))+']\n')
+    if writevararray:
         txt.write('\n')
+        txt.write('---\n')
+        for x in range(numcoordinates):
+            coordset=sorted(set(coord[x].grid))
+            outstr='q'+str(x)+'(1:phh)=['
+            for y in range(len(coordset)): 
+                if len(outstr)<930 and y!=(len(coordset)-1):
+                    outstr=outstr+str(coordset[y])+', '
+                elif len(outstr)>930:
+                    txt.write(outstr[:-2].replace('phh',str(y))+']\n')
+                    outstr='q'+str(numcoordinates)+'('+str(y+1)+':phh)=['
+                    outstr=outstr+str(coordset[y])+', '
+                elif y==(len(coordset)-1):
+                    outstr=outstr+str(coordset[y])
+                    txt.write(outstr.replace('phh',str(y))+']\n')
+            txt.write('\n')
     txt.close()
     if isfile(modifiedinputfile):
         if 'y' not in input('input file (tmp.inp) exists, overwrite? [y,N]').lower():
