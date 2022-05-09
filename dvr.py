@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """ This program was written as an implementation following
-Citation: Colbert, D. T.;  Miller, W. H. A Novel Discrete Variable Representation for Quantum-Mechanical Reactive Scattering via the S-Matrix Kohn Method. J. Chem. Phys. **1992**, 96, 1982–1991. http://doi.org/10.1063/1.462100
+Citation: Colbert, D. T.;  Miller, W. H. A Novel Discrete Variable Representation for Quantum-Mechanical Reactive Scattering via the S-Matrix Kohn Method. J. Chem. Phys. **1992**, 96, 1982–1991. http://doi.org/10.1063/1.462100.
 It is designed to take a relaxed scan of a 1-d or 2-d potential energy surface and return the eigenvalues from this surface. It additionally has the functionality to save and plot the wavefunctions of these surfaces. 
  """
 from builtins import (bytes, str, open, super, range, zip, round, input, int, pow, object)
@@ -34,7 +34,7 @@ def constants(CODATA_year=2010):
 #    hartreetocm=219474.6313717
 
 class potential:
-    """ The Potential Energy Surface (PES) Class stores all information associated with a single PES, starting from parsing the input."""
+    """ The Potential Energy Surface (PES) Class stores all information associated with a single PES."""
 # anyline starting with ! or # is commented out
     def __init__(self):
         self.r=[]
@@ -88,10 +88,11 @@ class potential:
         | printderiv :prints the derivitives
         | petsc integer [number of eigenvalues to solve for]:  use PETSC rather than mkl for solution, should be used with MPI
         | Keywords still under development
-        fiteigval float (repeat per number of eigenvals to fit to) :eigenvalue desired to fit to
-        fiteignum integer (repeat per number of eigenvals to fit to) : eigenvalue solution number for fitting
+        | fiteigval float (repeat per number of eigenvals to fit to) :eigenvalue desired to fit to
+        | fiteignum integer (repeat per number of eigenvals to fit to) : eigenvalue solution number for fitting
         | All other lines should have 
         | rest of lines should just have potential
+
         """
         commentoutchars=['!','#']
         types=['angular_2pi','radial','angular_pi']
@@ -234,26 +235,26 @@ class potential:
         workbook.close()
 
     def solve(self):
-        """ solves the potential, with different calls for 1d, 2d, nd, etc. Currently only 1d and 2d implemented"""
+        """Spline fit and solve the potential energy surface. Currently implemented for 1d and 2d."""
         if len(self.coordtypes)==1:
 #            from timeit import Timer
 #            t = Timer(lambda: spline1dpot(pts,mass,coordtypes,Energies,r))
 #            print('time={0}'.format(t.timeit(number=10)))
-            self.spline1dpot(self.pts,self.mass,self.coordtypes,self.energy,self.r)
+            self.spline1dpot()
         elif len(self.coordtypes)==2:
 #            from timeit import Timer
 #            t = Timer(lambda: spline2dpot(pts,mass,coordtypes,Energies,r))
 #            print('time={0}'.format(t.timeit(number=1)))
             import numpy as np
-            self.spline2dpot([ x for x in self.pts ],[ x for x in self.mass ],self.coordtypes,self.energy,self.r)
+            self.spline2dpot()
         else:
             raise ValueError("not implemented for %d dimensions" % (len(self.coordtypes)))
-            Ham=H_array(pts=pts,mass=mass,V=Energies,qmax=np.amax(r,axis=1),qmin=np.amin(r,axis=1),coordtype=coordtypes)
-            eigenval, eigenvec=np.linalg.eigh(Ham)
-            Esort=np.sort(eigenval*hartreetocm)
-            Etoprint=int(len(Esort)/2)
-            for x in range(Etoprint):
-                print('{0:.{1}f}'.format(round(Esort[x],num_print_digits),num_print_digits))
+            #Ham=H_array(pts=pts,mass=mass,V=Energies,qmax=np.amax(r,axis=1),qmin=np.amin(r,axis=1),coordtype=coordtypes)
+            #eigenval, eigenvec=np.linalg.eigh(Ham)
+            #Esort=np.sort(eigenval*hartreetocm)
+            #Etoprint=int(len(Esort)/2)
+            #for x in range(Etoprint):
+            #    print('{0:.{1}f}'.format(round(Esort[x],num_print_digits),num_print_digits))
 
     def fitfundamental(self):
         """ Fits reduced mass to desired frequencies"""
@@ -290,8 +291,13 @@ class potential:
         for x in range(Etoprint):
             print('{3} | {0:.{1}f} | {2:.{1}f}'.format(round(Esort[x],num_print_digits),num_print_digits,round(Esort[x]-Esort[0],num_print_digits),x))
 
-    def spline1dpot(self,pts,mass,coordtypes,Energies_raw,r_raw):
+    def spline1dpot(self):
         """ 1d cubic spline and solve. """
+        pts=self.pts
+        mass=self.mass
+        coordtypes=self.coordtypes
+        Energies_raw=self.energy
+        r_raw=self.r
         import numpy as np
         xmin,emin=return1dsplinemin(r_raw[0],Energies_raw)
         #r=r_raw-np.min(xmin)
@@ -425,7 +431,13 @@ class potential:
                         .format(tmproot,func1dder2(tmproot,*popt),func1d(tmproot,*popt)*hartreetocm))
 #                print(derivgrid[x],derivgrid[x-1])
 
-    def spline2dpot(self,pts,mass,coordtypes,Energies,r,saveeigen=True):
+    def spline2dpot(self):
+        pts=[ x for x in self.pts ]
+        mass=[ x for x in self.mass ]
+        coordtypes=self.coordtypes
+        Energies=self.energy
+        r=self.r
+        saveeigen=True
         """ 2d rectangular bivariate spline. Uses functions from potgen to change spacing  when massweighted spacing in rectangular grid is not identical. Writes numpy arrays out into tmp.eig.h5 so they can be plotted after solution"""
         import numpy as np
         from scipy.interpolate import griddata
@@ -694,14 +706,15 @@ def plot2d(x,y,z,wavenumber=False,wavenumbercutoff=10000,angular=True,norm=False
 #        levs=range(0,wavenumbercutoff,100)
     else:
         levs=np.linspace(float(np.min(z)),float(np.max(z)),100)
-    xlen=complex(len(set(x)))
-    ylen=complex(len(set(y)))
+    xlen=len(set(x))
+    ylen=len(set(y))
     if angular:
         x=(x*180/np.pi)
         y=(y*180/np.pi)
     #xi=np.linspace(min(x),max(x),xlen)
     #yi=np.linspace(min(y),max(y),ylen)
-    xi, yi= np.mgrid[min(x):max(x):xlen, min(y):max(y):ylen]
+#    xi, yi= np.mgrid[min(x):max(x):xlen, min(y):max(y):ylen]
+    xi, yi= np.meshgrid(np.linspace(min(x),max(x),xlen),np.linspace(min(y),max(y),ylen) )
     from scipy.interpolate import griddata
     zi=griddata((x,y),z,(xi,yi),method='cubic')
     plt.figure()
@@ -723,8 +736,24 @@ def plot2d(x,y,z,wavenumber=False,wavenumbercutoff=10000,angular=True,norm=False
         plt.close()
     return (xi,yi,np.divide(zi,219474.6313717))
 
-def H_array_petsc(pts=5,coordtype=['r'],mass=[0.5],qmin=[1.0],qmax=[2.0],V=[],numeig=6,printpetsc=False):
-    """ Petsc based solver"""
+def H_array_petsc(pts=[5],coordtype=['r'],mass=[0.5],qmin=[1.0],qmax=[2.0],V=[],numeig=6,printpetsc=False):
+    """ Petsc based solver
+    
+    Args:
+
+    | pts (list of int): The number of points in each dimension
+    | coordtype (list of str): (dict values r, phi, theta)
+    | mass (list of float): the reduced mass for each dimension given in amu, converted to atomic units here. For angular coordinates this is a moment of inertia in units of amu * bohr^2.
+    | qmin (list of float): the minimum q value for each dimension
+    | qmax (list of float): the maximum q value for each dimension
+    | V (list of float): The potential energy surface values
+    | numeig (int): The number of eigenvalues to calculate
+    | printpetsc (bool): If true, print petsc information 
+
+    Returns:
+    a numpy array (np.float64) of eigenvalues
+
+    """
     import sys, slepc4py
     slepc4py.init(sys.argv)
     from petsc4py import PETSc
@@ -831,7 +860,7 @@ def H_array_petsc(pts=5,coordtype=['r'],mass=[0.5],qmin=[1.0],qmax=[2.0],V=[],nu
             eigenval[i]=k.real
     return (eigenval)
 
-def H_array(pts=5,coordtype=['r'],mass=[0.5],qmin=[1.0],qmax=[2.0],V=[]):
+def H_array(pts=[5],coordtype=['r'],mass=[0.5],qmin=[1.0],qmax=[2.0],V=[]):
     """ Generate the 2d array to be solved by some method.
     
     Args:
@@ -845,10 +874,10 @@ def H_array(pts=5,coordtype=['r'],mass=[0.5],qmin=[1.0],qmax=[2.0],V=[]):
 
     Returns:
 
-    2d DVR array that can be solved for eigenvalues and functions.
+    2d numpy array that can be solved for eigenvalues and functions.
     the Kinetic Energy Array (dimensionality=2)
     : see Eq A6a and A6b of JCP 96, 1982 (1992): note 
-    constants are defined in constants module globally earlier
+    constants are defined in constants module globally earlier.
     The Hamiltonian has been converted to atomic units, e.g.
     H =  - [1/(2 am)] d^2/dx^2 + v(x)
     
@@ -917,9 +946,9 @@ def H_array(pts=5,coordtype=['r'],mass=[0.5],qmin=[1.0],qmax=[2.0],V=[]):
     return A
 
 def H_array_1d(pts=5,coordtype='r',mass=0.5,qmin=1.0,qmax=2.0):
-    """ Returns single coordinate 2d array necessary for multidimensional coordinate array generation
+    """ calculates single coordinate 2d array necessary for multidimensional coordinate array generation
 
-    args:
+    Args:
 
     | pts (int): The number of points
     | coordtype (str): (dict values r, phi, theta)
