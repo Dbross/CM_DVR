@@ -472,6 +472,9 @@ class potential:
             minbnds=(qmin0,qmin1)
             maxbnds=(qmax0,qmax1)
             bnds=list(zip(minbnds,maxbnds))
+            for i in range(len(bnds)):
+                if bnds[i][0]>bnds[i][1]:
+                    bnds[i]=(bnds[i][0],bnds[i][0])
             if len(self.minpos)==0:
                 c=[ (qmin0+qmax0)/2.0, (qmin1+qmax1)/2.0]
             else:

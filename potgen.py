@@ -81,7 +81,8 @@ class q:
         triali=[]
         trialj=[]
         vals=[]
-        mini, maxi,minj,maxj =int(round(0.5*self.numpoints)),self.numpoints*3, int(round(0.5*q_other.numpoints)),q_other.numpoints*3
+        mini, maxi,minj,maxj =int(round(0.5*self.numpoints)),min(self.numpoints*3,255), \
+                int(round(0.5*q_other.numpoints)),min(q_other.numpoints*3,255)
         if uselowest:
             mini, minj =min(mini,21), min(minj,21)
 #        if mingrid:
@@ -91,29 +92,36 @@ class q:
             """ modify grid of two radial coordinates to make mass weighting equal"""
             c=[self.maxval, self.minval, q_other.maxval, q_other.minval]
             if innerbound:
-                minbnds=(multiply(self.maxval,0.8),multiply(self.minval,1.000000010),\
-                        multiply(q_other.maxval,0.8),multiply(q_other.minval,1.000000010))
-                maxbnds=(multiply(self.maxval,0.9999999989),multiply(self.minval,1.3),\
-                        multiply(q_other.maxval,0.9999999989),multiply(q_other.minval,1.3))
+                minbnds=(multiply(self.maxval,0.8),multiply(self.minval,1.000000000),\
+                        multiply(q_other.maxval,0.8),multiply(q_other.minval,1.000000000))
+                maxbnds=(multiply(self.maxval,1.0),multiply(self.minval,1.3),\
+                        multiply(q_other.maxval,1.0),multiply(q_other.minval,1.3))
             else:
-                minbnds=(multiply(self.maxval,0.9),multiply(self.minval,0.9),\
-                        multiply(q_other.maxval,0.9),multiply(q_other.minval,0.9))
-                maxbnds=(multiply(self.maxval,1.1),multiply(self.minval,1.1),\
-                        multiply(q_other.maxval,1.1),multiply(q_other.minval,1.1))
+                minbnds=(multiply(self.maxval,0.8),multiply(self.minval,0.8),\
+                        multiply(q_other.maxval,0.8),multiply(q_other.minval,0.8))
+                maxbnds=(multiply(self.maxval,1.3),multiply(self.minval,1.3),\
+                        multiply(q_other.maxval,1.3),multiply(q_other.minval,1.3))
             bnds=list(zip(minbnds,maxbnds))
+            for i in range(len(bnds)):
+                if bnds[i][0]>bnds[i][1]:
+                    bnds[i]=(bnds[i][1],bnds[i][0])
             print('Bounds')
             print(bnds)
             mingridsolutionfound=False
+            minvalfound=1.0
             for i in range(self.numpoints,mini, -1):
                 for j in range(q_other.numpoints,minj, -1):
                     result=minimize(frr,c,args=(m1,m2,i,j),bounds=bnds)
                     result.fun=frr(result.x,m1,m2,i,j)
+                    if less(result.fun,minvalfound):
+                        minvalfound=result.fun
+                        mipos=result.x
                     if less(result.fun,1e-8):
                         trialval.append(result.fun)
                         triali.append(i)
                         trialj.append(j)
                         vals.append(result.x)
-#                        mingridsolutionfound=True
+                        mingridsolutionfound=True
             stoploop=False
             if not mingridsolutionfound:
                 for i in range(self.numpoints,maxi):
@@ -122,6 +130,9 @@ class q:
                     for j in range(self.numpoints,maxj):
                         result=minimize(frr,c,args=(m1,m2,i,j),bounds=bnds)
                         result.fun=frr(result.x,m1,m2,i,j)
+                        if less(result.fun,minvalfound):
+                            minvalfound=result.fun
+                            mipos=result.x
                         if less(result.fun,1e-8):
                             trialval.append(result.fun)
                             triali.append(i)
@@ -129,6 +140,8 @@ class q:
                             vals.append(result.x)
                             stoploop=True
                             break
+                if not stoploop:
+                    print(minvalfound,mipos)
         elif self.coordtype==0 and not forcegrid:
             """ modify grid of one radial coordinates to make mass weighting equal"""
             c=[self.maxval, self.minval]
@@ -382,7 +395,7 @@ def main():
         dq1=np.subtract(coord[0].grid[1],coord[0].grid[0])
         dq2=np.subtract(coord[1].grid[1],coord[1].grid[0])
         if not massweightequal(dq1,coord[0].mass,dq2,coord[1].mass):
-            coord[0].equivalencemwcoords(coord[1],innerbound=True,autoselect=True,forcegrid=False)
+            coord[0].equivalencemwcoords(coord[1],innerbound=False,autoselect=True,forcegrid=False)
             dq1=np.subtract(coord[0].grid[1],coord[0].grid[0])
             dq2=np.subtract(coord[1].grid[1],coord[1].grid[0])
             if not massweightequal(dq1,coord[0].mass,dq2,coord[1].mass,printerrors=True):
