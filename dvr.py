@@ -304,7 +304,7 @@ class potential:
         r_raw=self.r
         import numpy as np
         xmin,emin=return1dsplinemin(r_raw[0],Energies_raw)
-        #r=r_raw-np.min(xmin)
+        r=r_raw-np.min(xmin)
         r=r_raw
         Energies=Energies_raw-np.min(emin)
         from scipy.interpolate import splrep
@@ -357,59 +357,59 @@ class potential:
             mincut=[]
             maxcut=[]
             maxpot=np.max(np.multiply(Energies,hartreetocm))
-            for x in range(Etoprint):
+            for x in range(self.numtoplot):
                 for y in range(len(xnew)):
                     if Esort[x]>vfitcm[y]:
                         mincut.append(xnew[y])
                         break
-            for x in range(Etoprint):
+            for x in range(self.numtoplot):
                 for y in range(len(xnew)-1,1,-1):
                     if Esort[x]>vfitcm[y]:
                         maxcut.append(xnew[y])
                         break
-            for x in range(Etoprint):
+            for x in range(self.numtoplot):
                 plt.plot((mincut[x],maxcut[x]),(Esort[x],Esort[x]),linestyle='solid')
             plt.legend(['Points', 'Cubic Spline'])
             plt.title('Cubic-spline interpolation')
             plt.axis()
             plt.show(block=True)
-            plt.figure()
-            plt.title('ground state')
-            plt.plot(r[0],Energies/np.max(Energies))
-            plt.plot(r[0],np.square(eigenvec[0]),marker='o')
-            plt.plot(r[0],eigenvec[0],marker='x')
-            plt.show(block=False)
-            plt.figure()
-            plt.title('v=2 state')
-            plt.plot(r[0],Energies/np.max(Energies))
-            plt.plot(r[0],np.square(eigenvec[2]),marker='o')
-            plt.plot(r[0],eigenvec[2],marker='x')
-            plt.show(block=False)
-            plt.figure()
-            plt.title('v=1 state')
-            plt.plot(r[0],Energies/np.max(Energies))
-            plt.plot(r[0],eigenvec[1],marker='o')
-            plt.plot(r[0],np.square(eigenvec[1]),marker='x')
-            plt.figure()
-            plt.title('v=3 state')
-            plt.plot(r[0],Energies/np.max(Energies))
-            plt.plot(r[0],eigenvec[3],marker='o')
-            plt.plot(r[0],np.square(eigenvec[3]),marker='x')
-            plt.show(block=False)
-            plt.figure()
-            plt.title('v=4 state')
-            plt.plot(r[0],Energies/np.max(Energies))
-            plt.plot(r[0],eigenvec[4],marker='o')
-            plt.plot(r[0],np.square(eigenvec[4]),marker='x')
-            plt.show(block=False)
-            plt.figure()
-            plt.title('v=5 state')
-            plt.plot(r[0],Energies/np.max(Energies))
-            plt.plot(r[0],eigenvec[5],marker='o')
-            plt.plot(r[0],np.square(eigenvec[5]),marker='x')
-            plt.show(block=False)
+#            plt.figure()
+#            plt.title('ground state')
+#            plt.plot(r[0],Energies/np.max(Energies))
+#            plt.plot(r[0],np.square(eigenvec[0]),marker='o')
+#            plt.plot(r[0],eigenvec[0],marker='x')
+#            plt.show(block=False)
+#            plt.figure()
+#            plt.title('v=2 state')
+#            plt.plot(r[0],Energies/np.max(Energies))
+#            plt.plot(r[0],np.square(eigenvec[2]),marker='o')
+#            plt.plot(r[0],eigenvec[2],marker='x')
+#            plt.show(block=False)
+#            plt.figure()
+#            plt.title('v=1 state')
+#            plt.plot(r[0],Energies/np.max(Energies))
+#            plt.plot(r[0],eigenvec[1],marker='o')
+#            plt.plot(r[0],np.square(eigenvec[1]),marker='x')
+#            plt.figure()
+#            plt.title('v=3 state')
+#            plt.plot(r[0],Energies/np.max(Energies))
+#            plt.plot(r[0],eigenvec[3],marker='o')
+#            plt.plot(r[0],np.square(eigenvec[3]),marker='x')
+#            plt.show(block=False)
+#            plt.figure()
+#            plt.title('v=4 state')
+#            plt.plot(r[0],Energies/np.max(Energies))
+#            plt.plot(r[0],eigenvec[4],marker='o')
+#            plt.plot(r[0],np.square(eigenvec[4]),marker='x')
+#            plt.show(block=False)
+#            plt.figure()
+#            plt.title('v=5 state')
+#            plt.plot(r[0],Energies/np.max(Energies))
+#            plt.plot(r[0],eigenvec[5],marker='o')
+#            plt.plot(r[0],np.square(eigenvec[5]),marker='x')
+#            plt.show(block=False)
 
-            plt.show(block=True)
+#            plt.show(block=True)
 
     def fit1dpot(self):
         """ Analytical 1d fit. The functional form doesn't work well here for wags, although it does work well for torsions. """
