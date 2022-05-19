@@ -221,14 +221,18 @@ class q:
             q1range=subtract(self.maxval,self.minval)
             q2range=subtract(q_other.maxval,q_other.minval)
             mingridsolutionfound=False
+            minval=1e10
             for i in range(self.numpoints,mini, -1):
                 for j in range(q_other.numpoints,minj, -1):
                     val1= fangang(m1,m2,q1range,q2range,i,j)
+                    if minval>val1:
+                        minval, i1, j1 =val1, i, j
                     if val1<1e-07:
                         trialval.append(val1)
                         triali.append(i)
                         trialj.append(j)
 #                        mingridsolutionfound=True
+            print(minval,i1,j1)
             stoploop=False
             if not mingridsolutionfound:
                 for i in range(self.numpoints,maxi, 1):
@@ -303,6 +307,11 @@ class q:
         q_other.setgrid()
 #        print(self.maxval,self.minval,q_other.maxval,q_other.minval,self.numpoints,q_other.numpoints)
 
+    def equivalencemwcoords_3d(self,q1,q2):
+        mini, maxi =int(round(0.5*self.numpoints)),min(self.numpoints*3,255)
+        minj, maxj = int(round(0.5*q1.numpoints)) ,min(q1.numpoints*3,255)
+        mink, maxk = int(round(0.5*q2.numpoints)) ,min(q2.numpoints*3,255)
+
 def frr(c,m1,m2,pts1,pts2):
     """Minimization function for 2 radial coordinates """
     from numpy import subtract, power, round, divide, multiply#, add, int, abs
@@ -373,11 +382,26 @@ def silentmweq(inpcoord=[],mingrid=False,uselowest=False):
                 from sys import exit
                 exit()
         return coord
+    elif numcoordinates==3:
+        dq1=subtract(coord[0].grid[1],coord[0].grid[0])
+        dq2=subtract(coord[1].grid[1],coord[1].grid[0])
+        dq3=subtract(coord[2].grid[1],coord[2].grid[0])
+        m12=massweightequal(dq1,coord[0].mass,dq2,coord[1].mass)
+        m23=massweightequal(dq2,coord[1].mass,dq3,coord[2].mass)
+        if not m12 or not m23:
+            coord[0].equivalencemwcoords(coord[1],innerbound=True,autoselect=True,forcegrid=False,mingrid=mingrid,uselowest=uselowest)
+            dq1=subtract(coord[0].grid[1],coord[0].grid[0])
+            dq2=subtract(coord[1].grid[1],coord[1].grid[0])
+            if not massweightequal(dq1,coord[0].mass,dq2,coord[1].mass,printerrors=True):
+                from sys import exit
+                exit()
+        return coord
     
 def main():
     fieldlength=25
     modifiedinputfile='tmp.inp'
     outfile='tmp.pot'
+    zero_potential=False
     writevararray=False
     numcoordinates=int(input('number of coordinates: '))
     coord=[]
@@ -394,17 +418,23 @@ def main():
     elif numcoordinates==2:
         dq1=np.subtract(coord[0].grid[1],coord[0].grid[0])
         dq2=np.subtract(coord[1].grid[1],coord[1].grid[0])
-        if not massweightequal(dq1,coord[0].mass,dq2,coord[1].mass):
-            coord[0].equivalencemwcoords(coord[1],innerbound=False,autoselect=True,forcegrid=False)
-            dq1=np.subtract(coord[0].grid[1],coord[0].grid[0])
-            dq2=np.subtract(coord[1].grid[1],coord[1].grid[0])
-            if not massweightequal(dq1,coord[0].mass,dq2,coord[1].mass,printerrors=True):
-                from sys import exit
-                exit()
+        #if not massweightequal(dq1,coord[0].mass,dq2,coord[1].mass):
+        #    coord[0].equivalencemwcoords(coord[1],innerbound=False,autoselect=True,forcegrid=False)
+        #    dq1=np.subtract(coord[0].grid[1],coord[0].grid[0])
+        #    dq2=np.subtract(coord[1].grid[1],coord[1].grid[0])
+        #    if not massweightequal(dq1,coord[0].mass,dq2,coord[1].mass,printerrors=True):
+        #        from sys import exit
+        #        exit()
         indices=np.array(np.meshgrid(np.arange(coord[0].numpoints),np.arange(coord[1].numpoints))).T.reshape(-1,2)
         indices=np.split(indices,numcoordinates,axis=1) 
         for x in range(len(indices[0])):
             gridout.append(str(coord[0].grid[indices[0][x][0]]).ljust(fieldlength) + str(coord[1].grid[indices[1][x][0]]).ljust(fieldlength))
+    elif numcoordinates==3:
+        indices=np.array(np.meshgrid(np.arange(coord[0].numpoints),np.arange(coord[1].numpoints),np.arange(coord[2].numpoints))).T.reshape(-1,3)
+        indices=np.split(indices,numcoordinates,axis=1) 
+        for x in range(len(indices[0])):
+            gridout.append(str(coord[0].grid[indices[0][x][0]]).ljust(fieldlength) + str(coord[1].grid[indices[1][x][0]]).ljust(fieldlength)\
+                   + str(coord[2].grid[indices[2][x][0]]).ljust(fieldlength) )
     from os.path import isfile
     if isfile(outfile):
         if 'y' not in input('outfile (tmp.pot) exists, overwrite? [y,N]').lower():
@@ -422,7 +452,10 @@ def main():
     for x in range(numcoordinates):
         txt.write(str(coordtypedict[coord[x].coordtype]) + ' ')
     for x in range(len(gridout)):
-        txt.write('\n'+gridout[x])
+        if zero_potential:
+            txt.write('\n'+gridout[x]+ ' 0.0')
+        else:
+            txt.write('\n'+gridout[x])
     if writevararray:
         txt.write('\n')
         txt.write('---\n')
