@@ -1026,6 +1026,7 @@ def H_array_1d(pts=5,coordtype='r',mass=0.5,qmin=1.0,qmax=2.0):
                 m=int(np.divide(pts,2))
                 if (2*m+1)!=pts:
                     from sys import exit
+                    print(2*m+1,pts)
                     exit('in phi coordinate 2m+1 != n, must use odd number of points')
                 if i==j:
                     A[np.sum(i),np.sum(j)]=np.multiply(prefactor,np.divide(np.multiply(m,np.add(m,1)),3))
