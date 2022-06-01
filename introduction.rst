@@ -1,5 +1,5 @@
 :Author: David Bross <dbross@anl.gov> $
-:Date: 2019-04-02 $
+:Date: 2022-06-01 $
 :Revision: 1 $
 :Description: Multidimensional DVR program to generate and solve 1-d and 2-d potentials.
 
