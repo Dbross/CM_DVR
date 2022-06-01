@@ -58,6 +58,7 @@ class potential:
         self.petsc=False
         self.printpetsc=False
         self.eigenvalue_calc=False
+        self.mweq=True
 
     def readpotential(self,inp):
         """A parser that reads the input potential energy surface.
@@ -162,6 +163,8 @@ class potential:
                         self.numsol=6
                 elif 'mingrid' in x.lower():
                     self.mingrid=True
+                elif 'ignore_mw_space' in x.lower():
+                    self.mweq=False
                 elif 'printderiv' in x.lower():
                     self.print2ndderiv=True
                 elif 'noprinteigval' in x.lower():
@@ -250,7 +253,7 @@ class potential:
             self.spline2dpot()
         else:
             raise ValueError("not implemented for %d dimensions" % (len(self.coordtypes)))
-            Ham=H_array(pts=pts,mass=mass,V=Energies,qmax=np.amax(r,axis=1),qmin=np.amin(r,axis=1),coordtype=coordtypes)
+            Ham=H_array(pts=pts,mass=mass,V=Energies,qmax=np.amax(r,axis=1),qmin=np.amin(r,axis=1),coordtype=coordtypes,mweq=self.mweq)
             if self.eigenvalue_calc:
                 eigenval, eigenvec=np.linalg.eigh(Ham)
             else:
@@ -303,7 +306,8 @@ class potential:
         Energies_raw=self.energy
         r_raw=self.r
         import numpy as np
-        xmin,emin=return1dsplinemin(r_raw[0],Energies_raw)
+        #xmin,emin=return1dsplinemin(r_raw[0],Energies_raw)
+        xmin,emin=0.0, 0.0
         r=r_raw-np.min(xmin)
         r=r_raw
         Energies=Energies_raw-np.min(emin)
@@ -328,7 +332,7 @@ class potential:
             self.massadjust=True
         xnew = np.linspace(min(r[0]),max(r[0]), num=num_points)
         vfit= splev(xnew, Ener_spline, der=0)
-        Ham=H_array(pts=pts,mass=mass,V=Energies,qmax=np.amax(r,axis=1),qmin=np.amin(r,axis=1),coordtype=coordtypes)
+        Ham=H_array(pts=pts,mass=mass,V=Energies,qmax=np.amax(r,axis=1),qmin=np.amin(r,axis=1),coordtype=coordtypes,mweq=self.mweq)
         if self.eigenvalue_calc:
             eigenval, eigenvec=np.linalg.eigh(Ham)
             eindex=np.argsort(eigenval)
@@ -525,13 +529,15 @@ class potential:
 #        plt.show()
         mw1=mwspace(coordtype=coordtypes[0],rlen=rlen0,mass=mass[0],pts=pts[0])
         mw2=mwspace(coordtype=coordtypes[1],rlen=rlen1,mass=mass[1],pts=pts[1])
-        if np.abs(np.subtract(mw1,mw2))>1.0E-07 or self.mingrid:
+        if not self.mweq:
+            mw1=mw2
+        if (np.abs(np.subtract(mw1,mw2))>1.0E-07 and self.mweq) or self.mingrid:
             if self.useprevpoint:
                 pts[0]=self.prevpoints[0]
                 pts[1]=self.prevpoints[1]
         mw1=mwspace(coordtype=coordtypes[0],rlen=rlen0,mass=mass[0],pts=pts[0])
         mw2=mwspace(coordtype=coordtypes[1],rlen=rlen1,mass=mass[1],pts=pts[1])
-        if np.abs(np.subtract(mw1,mw2))>1.0E-07 or self.mingrid:
+        if (np.abs(np.subtract(mw1,mw2))>1.0E-07 and self.mweq ) or self.mingrid:
             #""" Adjust potential to have equal massweighted spacing"""
             print('Mass weighting unequal, adjusting grid\n OLD: {0:.4f}-{1:.4f} pts {2} {3:.4f}-{4:.4f} pts {5}'\
                     .format(float(qmin0),float(qmax0),int(pts[0]),float(qmin1),float(qmax1),int(pts[1])))
@@ -600,7 +606,7 @@ class potential:
                         ,printpetsc=self.printpetsc)
             else:
                 Ham=H_array(pts=pts,mass=mass,V=np.ndarray.flatten(vfit),\
-                        qmax=[qmax0,qmax1],qmin=[qmin0,qmin1],coordtype=coordtypes)
+                        qmax=[qmax0,qmax1],qmin=[qmin0,qmin1],coordtype=coordtypes,mweq=self.mweq)
                 if self.eigenvalue_calc:
                     eigenval, eigenvec=np.linalg.eigh(Ham)
                 else:
@@ -611,12 +617,12 @@ class potential:
                         coordtype=coordtypes,numeig=self.numsol,printpetsc=self.printpetsc)
             else:
                 if len(Energies)==pts[0]*pts[1]:
-                    Ham=H_array(pts=pts,mass=mass,V=Energies,qmax=np.amax(r,axis=1),qmin=np.amin(r,axis=1),coordtype=coordtypes)
+                    Ham=H_array(pts=pts,mass=mass,V=Energies,qmax=np.amax(r,axis=1),qmin=np.amin(r,axis=1),coordtype=coordtypes,mweq=self.mweq)
                 else:
                     print('warning: using griddata to make a rectangular grid for DVR')
                     grid_x, grid_y = np.mgrid[qmin0:qmax0:pts[0]*1j,qmin1:qmax1:pts[1]*1j]
                     vfit= griddata(np.transpose(np.array(r)),Energies,(grid_x,grid_y),method='cubic')
-                    Ham=H_array(pts=pts,mass=mass,V=np.ndarray.flatten(vfit),qmax=np.amax(r,axis=1),qmin=np.amin(r,axis=1),coordtype=coordtypes)
+                    Ham=H_array(pts=pts,mass=mass,V=np.ndarray.flatten(vfit),qmax=np.amax(r,axis=1),qmin=np.amin(r,axis=1),coordtype=coordtypes,mweq=self.mweq)
                 if self.eigenvalue_calc:
                     eigenval, eigenvec=np.linalg.eigh(Ham)
                 else:
@@ -895,7 +901,7 @@ def H_array_petsc(pts=[5],coordtype=['r'],mass=[0.5],qmin=[1.0],qmax=[2.0],V=[],
             eigenval[i]=k.real
     return (eigenval)
 
-def H_array(pts=[5],coordtype=['r'],mass=[0.5],qmin=[1.0],qmax=[2.0],V=[]):
+def H_array(pts=[5],coordtype=['r'],mass=[0.5],qmin=[1.0],qmax=[2.0],V=[],mweq=True):
     """ Generate the 2d array to be solved by some method.
     
     Args:
@@ -935,7 +941,7 @@ def H_array(pts=[5],coordtype=['r'],mass=[0.5],qmin=[1.0],qmax=[2.0],V=[]):
     if ncoord==2:
         D1, mw1=H_array_1d(pts[0],mass=mass[0],qmin=qmin[0],qmax=qmax[0],coordtype=coordtype[0])
         D2, mw2=H_array_1d(pts[1],mass=mass[1],qmin=qmin[1],qmax=qmax[1],coordtype=coordtype[1])
-        if np.abs(np.subtract(mw1,mw2))>1.0E-07:
+        if np.abs(np.subtract(mw1,mw2))>1.0E-07 and mweq:
             from sys import exit
             print('mass weighted coordinate spacing unequal as specified, stopping DVR')
             exit('mass weighted coordinate spacing unequal as specified, stopping DVR')
@@ -1024,10 +1030,10 @@ def H_array_1d(pts=5,coordtype='r',mass=0.5,qmin=1.0,qmax=2.0):
             elif coordtype=='phi':
                 prefactor=(1.0)/(2*mass_conv)
                 m=int(np.divide(pts,2))
-                if (2*m+1)!=pts:
-                    from sys import exit
-                    print(2*m+1,pts)
-                    exit('in phi coordinate 2m+1 != n, must use odd number of points')
+                #if (2*m+1)!=pts:
+                #    from sys import exit
+                #    print(2*m+1,pts)
+                #    exit('in phi coordinate 2m+1 != n, must use odd number of points')
                 if i==j:
                     A[np.sum(i),np.sum(j)]=np.multiply(prefactor,np.divide(np.multiply(m,np.add(m,1)),3))
                 else:
